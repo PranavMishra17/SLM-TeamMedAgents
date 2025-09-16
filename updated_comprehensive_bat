@@ -1,0 +1,197 @@
+@echo off
+REM ========================================================================
+REM Updated Comprehensive SLM Runner - Modular Chat Instance Edition
+REM Runs Gemma3-4B and MedGemma-4B with Zero-shot, Few-shot, and CoT
+REM on all supported medical datasets with flexible chat instances
+REM ========================================================================
+
+echo ========================================================================
+echo       UPDATED SLM COMPREHENSIVE EVALUATION - MODULAR ARCHITECTURE
+echo ========================================================================
+echo.
+echo This script will run evaluations for:
+echo - Models: Gemma3-4B-IT, MedGemma-4B-IT
+echo - Chat Instances: Google AI Studio (default), Hugging Face (optional)
+echo - Methods: Zero-shot, Few-shot, Chain-of-Thought
+echo - Text Datasets: MedQA, MedMCQA, MMLU-Pro-Med, PubMedQA, DDXPlus, MedBullets
+echo - Image Datasets: PMC-VQA, Path-VQA
+echo - Questions: 50 per dataset (default)
+echo.
+
+REM Configuration
+set PYTHON=python
+set SCRIPT=slm_runner_updated.py
+set NUM_QUESTIONS=50
+set RANDOM_SEED=42
+
+REM Default chat instance (can be changed)
+set CHAT_INSTANCE=google_ai_studio
+REM Alternative: set CHAT_INSTANCE=huggingface
+
+echo Using Chat Instance: %CHAT_INSTANCE%
+echo.
+
+REM Get current timestamp
+for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "dt=%%a"
+set "YY=%dt:~2,2%" & set "YYYY=%dt:~0,4%" & set "MM=%dt:~4,2%" & set "DD=%dt:~6,2%"
+set "HH=%dt:~8,2%" & set "Min=%dt:~10,2%" & set "Sec=%dt:~12,2%"
+set "timestamp=%YYYY%%MM%%DD%_%HH%%Min%%Sec%"
+
+REM Check prerequisites based on chat instance
+echo Checking prerequisites for %CHAT_INSTANCE%...
+
+if "%CHAT_INSTANCE%"=="google_ai_studio" (
+    echo Checking Google AI Studio requirements...
+    python -c "import google.genai; print('âœ" google-genai library available')" 2>nul
+    if %ERRORLEVEL% neq 0 (
+        echo [ERROR] google-genai library not found. Installing...
+        pip install google-genai
+        if %ERRORLEVEL% neq 0 (
+            echo [FATAL] Failed to install google-genai. Exiting.
+            pause
+            exit /b 1
+        )
+    )
+    
+    python -c "import os; assert os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY'), 'Missing API key'" 2>nul
+    if %ERRORLEVEL% neq 0 (
+        echo [ERROR] GEMINI_API_KEY or GOOGLE_API_KEY environment variable not set.
+        echo Please set your Google AI Studio API key in the environment or .env file.
+        echo Example: set GEMINI_API_KEY=your_api_key_here
+        pause
+        exit /b 1
+    )
+) else if "%CHAT_INSTANCE%"=="huggingface" (
+    echo Checking Hugging Face requirements...
+    python -c "import transformers, torch; print('✓ transformers and torch libraries available')" 2>nul
+    if %ERRORLEVEL% neq 0 (
+        echo [ERROR] transformers or torch libraries not found. Installing...
+        pip install transformers torch pillow
+        if %ERRORLEVEL% neq 0 (
+            echo [FATAL] Failed to install transformers libraries. Exiting.
+            pause
+            exit /b 1
+        )
+    )
+    
+    python -c "import os; assert os.environ.get('HUGGINGFACE_TOKEN'), 'Missing HF token'" 2>nul
+    if %ERRORLEVEL% neq 0 (
+        echo [ERROR] HUGGINGFACE_TOKEN environment variable not set.
+        echo Please set your Hugging Face token in the environment or .env file.
+        echo Example: set HUGGINGFACE_TOKEN=your_hf_token_here
+        pause
+        exit /b 1
+    )
+) else (
+    echo [ERROR] Unknown chat instance: %CHAT_INSTANCE%
+    echo Available options: google_ai_studio, huggingface
+    pause
+    exit /b 1
+)
+
+echo ✓ Prerequisites check passed for %CHAT_INSTANCE%
+echo.
+echo Starting comprehensive evaluation at %timestamp%
+echo.
+
+REM Define arrays (using space-separated values)
+set MODELS=gemma3_4b medgemma_4b
+set METHODS=zero_shot few_shot cot
+set DATASETS=medqa medmcqa mmlupro-med pubmedqa ddxplus medbullets pmc_vqa path_vqa
+
+REM Initialize counters
+set /a TOTAL_RUNS=0
+set /a SUCCESS_RUNS=0
+set /a FAILED_RUNS=0
+
+echo ========================================================================
+echo Starting Evaluations with %CHAT_INSTANCE% chat instance...
+echo ========================================================================
+echo.
+
+REM Loop through models
+for %%m in (%MODELS%) do (
+    echo ************************************************************************
+    echo Processing Model: %%m with %CHAT_INSTANCE%
+    echo ************************************************************************
+    echo.
+    
+    REM Loop through methods  
+    for %%t in (%METHODS%) do (
+        echo ========================================
+        echo Method: %%t
+        echo ========================================
+        echo.
+        
+        REM Loop through datasets
+        for %%d in (%DATASETS%) do (
+            set /a TOTAL_RUNS+=1
+            
+            echo [Run !TOTAL_RUNS!] Starting: Model=%%m, Method=%%t, Dataset=%%d, ChatInstance=%CHAT_INSTANCE%
+            echo Command: %PYTHON% %SCRIPT% --model %%m --method %%t --dataset %%d --chat_instance %CHAT_INSTANCE% --num_questions %NUM_QUESTIONS% --random_seed %RANDOM_SEED%
+            echo.
+            
+            REM Run the evaluation
+            %PYTHON% %SCRIPT% --model %%m --method %%t --dataset %%d --chat_instance %CHAT_INSTANCE% --num_questions %NUM_QUESTIONS% --random_seed %RANDOM_SEED%
+            
+            REM Check if successful
+            if !ERRORLEVEL! equ 0 (
+                set /a SUCCESS_RUNS+=1
+                echo [SUCCESS] Completed: %%m/%%t/%%d/%CHAT_INSTANCE%
+                echo.
+            ) else (
+                set /a FAILED_RUNS+=1
+                echo [ERROR] Failed: %%m/%%t/%%d/%CHAT_INSTANCE% ^(Error Code: !ERRORLEVEL!^)
+                echo.
+            )
+            
+            REM Brief pause between runs
+            timeout /t 2 >nul
+        )
+        echo.
+    )
+    echo.
+)
+
+REM Get end timestamp
+for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "dt2=%%a"
+set "end_timestamp=%dt2:~0,4%%dt2:~4,2%%dt2:~6,2%_%dt2:~8,2%%dt2:~10,2%%dt2:~12,2%"
+
+echo ========================================================================
+echo           COMPREHENSIVE EVALUATION COMPLETE
+echo ========================================================================
+echo.
+echo Start Time: %timestamp%
+echo End Time:   %end_timestamp%
+echo Chat Instance: %CHAT_INSTANCE%
+echo.
+echo SUMMARY:
+echo --------
+echo Total Runs:      %TOTAL_RUNS%
+echo Successful:      %SUCCESS_RUNS%
+echo Failed:          %FAILED_RUNS%
+echo.
+
+if %FAILED_RUNS% equ 0 (
+    echo [SUCCESS] All evaluations completed successfully!
+) else (
+    echo [WARNING] %FAILED_RUNS% evaluation(s) failed. Check logs for details.
+)
+
+echo.
+echo Results Directory Structure:
+echo SLM_Results/
+echo   gemma3_4b/ and medgemma_4b/
+echo     zero-shot/, few-shot/, cot/
+echo       medqa/, medmcqa/, mmlupro-med/, pubmedqa/, ddxplus/, medbullets/
+echo       pmc_vqa/, path_vqa/ (image-based datasets)
+echo.
+echo Log files saved to: logs/slm/
+echo.
+echo Chat Instance Used: %CHAT_INSTANCE%
+echo.
+echo ========================================================================
+
+REM Keep window open
+echo Press any key to exit...
+pause >nul
