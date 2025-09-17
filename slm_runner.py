@@ -263,7 +263,7 @@ Answer: """
         return examples_text + main_question
     
     def create_cot_prompt(self, agent_task: Dict[str, Any], is_image_task: bool = False) -> str:
-        """Create Chain-of-Thought prompt with optional image support."""
+        """Create Chain-of-Thought prompt with explicit reasoning demonstration."""
         question_text = agent_task["description"]
         options = agent_task.get("options", [])
         task_type = agent_task.get("type", "mcq")
@@ -277,14 +277,19 @@ Answer: """
         # Add image-specific reasoning steps if this is an image task
         if is_image_task:
             image_cot_addition = """
-1. **Analyze the medical image**: What structures, abnormalities, or features are visible?
-2. **Identify key visual findings**: What specific details in the image are relevant to the question?
-3. **Correlate image with clinical context**: How do the visual findings relate to the question being asked?"""
-            cot_template = image_cot_addition + "\n" + cot_template
+Before applying the reasoning framework, first analyze the image:
+1. **Visual Analysis**: What structures, abnormalities, or features are visible?
+2. **Clinical Correlation**: How do visual findings relate to the question?
+3. **Integration**: Combine image findings with clinical reasoning below.
+
+"""
+            cot_template = image_cot_addition + cot_template
         
         if task_type == "mcq":
             options_text = "\n".join(options)
             instruction = "Analyze the provided medical image and answer" if is_image_task else "Answer"
+            
+            # Enhanced CoT prompt with explicit step-by-step requirement
             prompt = f"""{instruction} the following multiple choice question using step-by-step reasoning.
 
 Question:
@@ -294,6 +299,23 @@ Options:
 {options_text}
 
 {cot_template}
+
+Now work through THIS question step by step:
+
+Step 1 - Clinical presentation analysis:
+[Analyze the key symptoms, findings, and clinical context]
+
+Step 2 - Pathophysiology consideration:
+[Consider the underlying disease processes or mechanisms]
+
+Step 3 - Option evaluation:
+[Go through each option A, B, C, D and evaluate how well it fits]
+
+Step 4 - Knowledge application:
+[Apply relevant medical knowledge and eliminate incorrect options]
+
+Step 5 - Final reasoning:
+[Explain why the chosen answer is most appropriate]
 
 Final Answer: """
         
@@ -305,6 +327,20 @@ Question:
 {question_text}
 
 {cot_template}
+
+Now work through THIS question step by step:
+
+Step 1 - Question analysis:
+[What exactly is being asked?]
+
+Step 2 - Evidence consideration:
+[What evidence supports yes, no, or maybe?]
+
+Step 3 - Knowledge application:
+[What medical/scientific knowledge applies?]
+
+Step 4 - Final reasoning:
+[Explain the logic leading to your answer]
 
 Final Answer: """
         

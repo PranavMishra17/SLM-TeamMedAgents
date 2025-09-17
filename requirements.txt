@@ -30,6 +30,7 @@ datasets==3.3.2
 transformers==4.56.1
 tokenizers==0.22.0
 huggingface-hub==0.35.0
+torch==2.2.0
 
 # ==================== IMAGE PROCESSING ====================
 Pillow==11.1.0
@@ -100,6 +101,9 @@ typing-inspection>=0.7.0  # Required by pydantic
 
 # UI dependencies
 colorama>=0.4.0  # Required by tqdm
+
+accelerate==1.10.1  # Required by torch
+bitsandbytes==0.47.0  # Required by torch
 
 # System info for reproducibility:
 # Python: 3.12.6

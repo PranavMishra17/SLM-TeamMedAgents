@@ -188,124 +188,110 @@ class GoogleAIStudioChatInstance(BaseChatInstance):
             raise
 
 class HuggingFaceChatInstance(BaseChatInstance):
-    """Hugging Face chat instance using transformers library."""
+    """Hugging Face chat instance using transformers library with pipeline API."""
     
     def __init__(self, model_config: Dict[str, Any]):
         super().__init__(model_config)
         
         try:
-            from transformers import AutoProcessor, AutoModelForImageTextToText, pipeline
             import torch
-            self.AutoProcessor = AutoProcessor
-            self.AutoModelForImageTextToText = AutoModelForImageTextToText
-            self.pipeline = pipeline
+            from transformers import pipeline, BitsAndBytesConfig
             self.torch = torch
+            self.pipeline = pipeline
+            self.BitsAndBytesConfig = BitsAndBytesConfig
         except ImportError:
-            raise ImportError("transformers library not available. Install with: pip install transformers torch")
+            raise ImportError("Required packages not available. Install with: pip install transformers torch accelerate bitsandbytes")
         
         # Check HF token
-        hf_token = os.environ.get('HUGGINGFACE_TOKEN')
+        hf_token = os.environ.get('HUGGINGFACE_TOKEN') or os.environ.get('HF_TOKEN')
         if not hf_token:
-            raise ValueError("HUGGINGFACE_TOKEN environment variable not set")
+            raise ValueError("HUGGINGFACE_TOKEN or HF_TOKEN environment variable not set")
         
         self.hf_model_name = model_config.get("hf_model_name", model_config["model"])
         self.device = "cuda" if self.torch.cuda.is_available() else "cpu"
         
-        # Initialize model and processor
-        self._initialize_model()
+        # Determine if this is a text-only or multimodal model
+        self.is_text_only = "text" in self.hf_model_name.lower()
         
-        logging.info(f"Initialized {self.display_name} via Hugging Face on {self.device}")
+        # Initialize model using pipeline API
+        self._initialize_pipeline()
+        
+        logging.info(f"Initialized {self.display_name} via Hugging Face Pipeline on {self.device}")
     
-    def _initialize_model(self):
-        """Initialize the Hugging Face model and processor."""
+    def _initialize_pipeline(self):
+        """Initialize the Hugging Face pipeline with optimized settings."""
         try:
-            if self.supports_vision:
-                # For vision models
-                self.processor = self.AutoProcessor.from_pretrained(
-                    self.hf_model_name,
-                    token=os.environ.get('HUGGINGFACE_TOKEN')
-                )
-                self.model = self.AutoModelForImageTextToText.from_pretrained(
-                    self.hf_model_name,
-                    token=os.environ.get('HUGGINGFACE_TOKEN'),
-                    torch_dtype=self.torch.float16 if self.device == "cuda" else self.torch.float32,
-                    device_map="auto" if self.device == "cuda" else None
-                )
-            else:
-                # For text-only models, use pipeline
-                self.pipe = self.pipeline(
-                    "text-generation",
-                    model=self.hf_model_name,
-                    token=os.environ.get('HUGGINGFACE_TOKEN'),
-                    torch_dtype=self.torch.float16 if self.device == "cuda" else self.torch.float32,
-                    device_map="auto" if self.device == "cuda" else None
-                )
+            # Configure quantization for large models
+            use_quantization = self._should_use_quantization()
+            
+            # Remove token from model_kwargs to avoid duplicate parameter error
+            model_kwargs = {
+                "torch_dtype": self.torch.bfloat16,
+                "device_map": "auto"
+            }
+            
+            if use_quantization:
+                model_kwargs["quantization_config"] = self.BitsAndBytesConfig(load_in_4bit=True)
+            
+            # For multimodal models, always initialize text-generation pipeline to avoid torch version issues
+            # Only use image-text-to-text when actually processing images
+            task = "text-generation"
+            logging.info(f"Loading {self.hf_model_name} as text-generation pipeline")
+            
+            # Initialize pipeline with token passed separately
+            self.pipe = self.pipeline(
+                task,
+                model=self.hf_model_name,
+                model_kwargs=model_kwargs,
+                token=os.environ.get('HUGGINGFACE_TOKEN') or os.environ.get('HF_TOKEN')
+            )
+            
+            # Configure generation settings
+            self.pipe.model.generation_config.do_sample = False
+            
         except Exception as e:
-            logging.error(f"Failed to initialize Hugging Face model: {e}")
+            logging.error(f"Failed to initialize Hugging Face pipeline: {e}")
             raise
+    
+    def _should_use_quantization(self) -> bool:
+        """Determine if quantization should be used based on model size and available memory."""
+        # Use quantization for large models (27B+ parameters) or when CUDA memory is limited
+        if "27b" in self.hf_model_name.lower():
+            return True
+        
+        # Check available CUDA memory
+        if self.torch.cuda.is_available():
+            try:
+                memory_gb = self.torch.cuda.get_device_properties(0).total_memory / (1024**3)
+                if memory_gb < 16:  # Less than 16GB VRAM
+                    return True
+            except:
+                pass
+        
+        return False
     
     def simple_chat(self, message: str, image_path: str = None) -> str:
         """Simple single-turn chat with optional image support."""
         try:
-            if self.supports_vision:
-                return self._vision_chat(message, image_path)
+            # Use text-only mode if no image provided, even for multimodal models
+            if image_path and os.path.exists(image_path) and not self.is_text_only:
+                return self._multimodal_chat(message, image_path)
             else:
                 return self._text_chat(message)
         except Exception as e:
             logging.error(f"Error in Hugging Face simple_chat: {e}")
             raise
     
-    def _vision_chat(self, message: str, image_path: str = None) -> str:
-        """Handle vision-enabled chat."""
-        try:
-            content = [{"type": "text", "text": message}]
-            
-            if image_path:
-                image = self._load_image(image_path)
-                if image:
-                    # Convert PIL image to URL format expected by processor
-                    buffer = io.BytesIO()
-                    image.save(buffer, format='PNG')
-                    image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
-                    image_url = f"data:image/png;base64,{image_data}"
-                    content.insert(0, {"type": "image", "url": image_url})
-            
-            messages = [{"role": "user", "content": content}]
-            
-            inputs = self.processor.apply_chat_template(
-                messages,
-                add_generation_prompt=True,
-                tokenize=True,
-                return_dict=True,
-                return_tensors="pt",
-            ).to(self.model.device)
-            
-            max_new_tokens = self.model_config.get("max_tokens", 512)
-            outputs = self.model.generate(
-                **inputs, 
-                max_new_tokens=max_new_tokens,
-                temperature=self.model_config.get("temperature", 0.3),
-                do_sample=True if self.model_config.get("temperature", 0.3) > 0 else False
-            )
-            
-            response = self.processor.decode(
-                outputs[0][inputs["input_ids"].shape[-1]:], 
-                skip_special_tokens=True
-            )
-            
-            return response.strip()
-        except Exception as e:
-            logging.error(f"Error in vision chat: {e}")
-            raise
-    
     def _text_chat(self, message: str) -> str:
-        """Handle text-only chat."""
+        """Handle text-only chat using pipeline."""
         try:
+            # For text generation pipeline, pass the message directly as string
+            max_new_tokens = self.model_config.get("max_tokens", 512)
+            
             outputs = self.pipe(
-                message,
-                max_new_tokens=self.model_config.get("max_tokens", 512),
-                temperature=self.model_config.get("temperature", 0.3),
-                do_sample=True if self.model_config.get("temperature", 0.3) > 0 else False,
+                message,  # Pass message directly, not as 'text='
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
                 return_full_text=False
             )
             
@@ -314,21 +300,94 @@ class HuggingFaceChatInstance(BaseChatInstance):
             logging.error(f"Error in text chat: {e}")
             raise
     
+    def _multimodal_chat(self, message: str, image_path: str = None) -> str:
+        """Handle multimodal chat with image support."""
+        try:
+            # Prepare system message
+            role_instruction = "You are an expert medical AI assistant."
+            system_instruction = role_instruction
+            
+            # Prepare user content
+            user_content = [{"type": "text", "text": message}]
+            
+            # Add image if provided
+            if image_path and os.path.exists(image_path):
+                try:
+                    from PIL import Image
+                    image = Image.open(image_path)
+                    user_content.append({"type": "image", "image": image})
+                except Exception as e:
+                    logging.warning(f"Failed to load image {image_path}: {e}")
+            
+            # Format messages
+            messages = [
+                {
+                    "role": "system",
+                    "content": [{"type": "text", "text": system_instruction}]
+                },
+                {
+                    "role": "user",
+                    "content": user_content
+                }
+            ]
+            
+            max_new_tokens = self.model_config.get("max_tokens", 300)
+            
+            # Generate response
+            output = self.pipe(text=messages, max_new_tokens=max_new_tokens)
+            response = output[0]["generated_text"][-1]["content"]
+            
+            # Handle thinking mode for 27B models (if applicable)
+            if "27b" in self.hf_model_name.lower() and "<unused95>" in response:
+                thought, actual_response = response.split("<unused95>")
+                response = actual_response
+            
+            return response.strip()
+            
+        except Exception as e:
+            logging.error(f"Error in multimodal chat: {e}")
+            raise
+    
     def streaming_chat(self, message: str, image_path: str = None):
         """Streaming chat response generator."""
-        # For now, return the full response as a single chunk
-        # Hugging Face streaming requires more complex setup
+        # Pipeline API doesn't easily support streaming, return full response
         response = self.simple_chat(message, image_path)
         yield response
     
     def conversation_chat(self, messages: List[Dict[str, str]], image_paths: List[str] = None) -> str:
         """Multi-turn conversation chat."""
-        # For now, use the last message
-        # Full conversation support requires conversation templates
-        last_message = messages[-1]["content"] if messages else ""
-        last_image = image_paths[-1] if image_paths and image_paths else None
-        
-        return self.simple_chat(last_message, last_image)
+        try:
+            # Convert to pipeline format
+            formatted_messages = []
+            
+            for i, msg in enumerate(messages):
+                content = [{"type": "text", "text": msg["content"]}]
+                
+                # Add image if provided for this message
+                if (image_paths and i < len(image_paths) and image_paths[i] and 
+                    msg["role"] == "user" and not self.is_text_only):
+                    try:
+                        from PIL import Image
+                        image = Image.open(image_paths[i])
+                        content.append({"type": "image", "image": image})
+                    except Exception as e:
+                        logging.warning(f"Failed to load image {image_paths[i]}: {e}")
+                
+                formatted_messages.append({
+                    "role": msg["role"],
+                    "content": content
+                })
+            
+            max_new_tokens = self.model_config.get("max_tokens", 512)
+            
+            output = self.pipe(text=formatted_messages, max_new_tokens=max_new_tokens)
+            response = output[0]["generated_text"][-1]["content"]
+            
+            return response.strip()
+            
+        except Exception as e:
+            logging.error(f"Error in conversation chat: {e}")
+            raise
 
 class ChatInstanceFactory:
     """Factory for creating chat instances."""

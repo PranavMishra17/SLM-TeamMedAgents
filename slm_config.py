@@ -192,7 +192,7 @@ FEW_SHOT_EXAMPLES = {
     ]
 }
 
-# Chain-of-Thought prompting templates (unchanged)
+# Chain-of-Thought prompting templates with actual reasoning examples
 COT_TEMPLATES = {
     "medical_mcq": """
 Let me think through this step by step:
@@ -203,7 +203,17 @@ Let me think through this step by step:
 4. **Apply medical knowledge**: What does current medical understanding suggest?
 5. **Make the diagnosis**: Which option is most consistent with the evidence?
 
-Now let me work through this systematically:
+Here's an example of how to work through a medical question systematically:
+
+Example: "A 65-year-old man presents with chest pain and shortness of breath. ECG shows ST elevation in leads II, III, and aVF. Which coronary artery is most likely occluded?"
+
+Step 1 - Clinical presentation: 65-year-old male, chest pain + shortness of breath = classic MI symptoms
+Step 2 - ECG findings: ST elevation in leads II, III, aVF = these are inferior leads
+Step 3 - Anatomical correlation: Inferior wall MI is typically supplied by the right coronary artery (RCA)
+Step 4 - Rule out alternatives: LAD supplies anterior wall (V1-V6), LCX supplies lateral (I, aVL, V5-V6)
+Step 5 - Conclusion: RCA occlusion is most likely
+
+Now apply this same systematic approach to the current question:
 """,
     "general_mcq": """
 Let me approach this systematically:
@@ -214,7 +224,18 @@ Let me approach this systematically:
 4. **Eliminate incorrect options**: Which choices can be ruled out and why?
 5. **Select the best answer**: Which option is most accurate?
 
-Let me work through this step by step:
+Here's an example of systematic reasoning:
+
+Example: "Which gas makes up the largest percentage of Earth's atmosphere?"
+A. Oxygen (21%)  B. Nitrogen (78%)  C. Carbon dioxide (0.04%)  D. Argon (0.93%)
+
+Step 1 - Question asks: Largest percentage gas in atmosphere
+Step 2 - Compare percentages: Nitrogen 78% > Oxygen 21% > Argon 0.93% > CO2 0.04%
+Step 3 - Apply knowledge: Atmosphere composition is well-established scientific fact
+Step 4 - Eliminate: A (oxygen is second), C (CO2 is trace), D (argon is small)
+Step 5 - Select: B (nitrogen) has the highest percentage at 78%
+
+Now apply this reasoning process to the current question:
 """
 }
 
