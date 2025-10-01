@@ -260,6 +260,32 @@ TOKEN_LIMITS = {
     "budget_per_question": 25000
 }
 
+# Rate limits for different models
+RATE_LIMITS = {
+    "gemma3_4b": {
+        "rpm": 30,      # Requests per minute
+        "tpm": 15000,   # Tokens per minute
+        "rpd": 14400,   # Requests per day
+        "model_family": "gemma3"
+    },
+    "medgemma_4b": {
+        "rpm": 30,      # Same limits as gemma3
+        "tpm": 15000,   
+        "rpd": 14400,
+        "model_family": "gemma3"
+    }
+}
+
+# Retry configuration
+RETRY_CONFIG = {
+    "max_retries": 5,
+    "initial_delay": 1.0,        # Initial delay in seconds
+    "max_delay": 60.0,          # Maximum delay in seconds
+    "exponential_base": 2.0,     # Exponential backoff base
+    "jitter": True,             # Add random jitter to prevent thundering herd
+    "rate_limit_delay": 65.0    # Fixed delay for rate limit errors (65 seconds)
+}
+
 def get_model_config(model_name: str = None, chat_instance_type: str = None) -> Dict[str, Any]:
     """Get configuration for specified model and chat instance type."""
     if model_name is None:
@@ -281,20 +307,21 @@ def get_model_config(model_name: str = None, chat_instance_type: str = None) -> 
     
     return base_config
 
-def get_output_dir(method: str, dataset: str, model_name: str = None) -> str:
-    """Get output directory path for method, dataset, and model."""
+def get_output_dir(method: str, dataset: str, model_name: str = None, output_base_dir: str = None) -> str:
+    """Get output directory path for method, dataset, and model in format: {base_dir}/model/dataset/method."""
     if method not in PROMPTING_METHODS:
         raise ValueError(f"Method {method} not supported. Available: {list(PROMPTING_METHODS.keys())}")
     
+    base_dir = output_base_dir or OUTPUT_BASE_DIR
     method_dir = PROMPTING_METHODS[method]["output_dir"]
     
     if model_name:
-        # Get model config for folder naming
+        # New structure: {base_dir}/model/dataset/method
         model_config = get_model_config(model_name)
         model_folder = model_config["folder_name"]
-        return os.path.join(OUTPUT_BASE_DIR, model_folder, method_dir, dataset)
+        return os.path.join(base_dir, model_folder, dataset, method_dir)
     else:
-        return os.path.join(OUTPUT_BASE_DIR, method_dir, dataset)
+        return os.path.join(base_dir, dataset, method_dir)
 
 def get_supported_datasets() -> List[str]:
     """Get list of supported dataset names."""
@@ -319,6 +346,22 @@ def is_vision_model(model_name: str) -> bool:
     if model_name not in SLM_MODELS:
         return False
     return SLM_MODELS[model_name].get("supports_vision", False)
+
+def get_all_configurations_for_model(model_name: str) -> List[Dict[str, str]]:
+    """Get all dataset-method combinations for a specific model."""
+    if model_name not in SLM_MODELS:
+        raise ValueError(f"Model {model_name} not supported. Available: {get_supported_models()}")
+    
+    configurations = []
+    for dataset in get_supported_datasets():
+        for method in PROMPTING_METHODS.keys():
+            configurations.append({
+                "model": model_name,
+                "dataset": dataset,
+                "method": method
+            })
+    
+    return configurations
 
 def validate_configuration(chat_instance_type: str = None) -> bool:
     """Validate that required configurations are present."""

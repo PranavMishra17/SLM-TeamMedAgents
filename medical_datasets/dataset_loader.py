@@ -171,7 +171,7 @@ class DatasetLoader:
     @staticmethod
     def load_ddxplus(num_questions: int = 50, random_seed: int = 42, 
                      dataset_split: str = "train") -> List[Dict[str, Any]]:
-        """Load DDXPlus dataset."""
+        """Load DDXPlus dataset from local directory."""
         from .dataset_formatters import DDXPlusFormatter
         
         logging.info(f"Loading DDXPlus dataset with {num_questions} random questions from {dataset_split} split")

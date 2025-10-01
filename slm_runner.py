@@ -30,6 +30,7 @@ from medical_datasets import (
 # Import updated configuration and chat instances
 from slm_config import *
 from chat_instances import ChatInstanceFactory, BaseChatInstance
+from utils.results_logger import ResultsLogger, TokenCounter
 
 class SLMAgent:
     """Updated SLM Agent using modular chat instances."""
@@ -75,6 +76,7 @@ class SLMMethodRunner:
         self.model_config = get_model_config(model_name, chat_instance_type)
         self.agent = SLMAgent(self.model_config, chat_instance_type)
         self.output_base_dir = output_base_dir or OUTPUT_BASE_DIR
+        self.results_logger = ResultsLogger(self.output_base_dir)
         self.setup_logging()
         
         logging.info(f"Initialized SLM runner with {self.model_config['display_name']} using {chat_instance_type}")
@@ -417,6 +419,11 @@ Final Answer: """
             ground_truth = eval_data["ground_truth"]
             is_correct = (extracted_answer == ground_truth) if extracted_answer else False
             
+            # Add token tracking to result
+            token_data = self.results_logger.token_counter.log_question_tokens(
+                prompt, response, question_index
+            )
+            
             result = {
                 "question_index": question_index,
                 "dataset": dataset_name,
@@ -431,6 +438,7 @@ Final Answer: """
                 "full_response": response,
                 "prompt": prompt,
                 "response_time": end_time - start_time,
+                "token_usage": token_data,
                 "task_metadata": eval_data.get("metadata", {}),
                 "timestamp": datetime.now().isoformat()
             }
@@ -461,8 +469,8 @@ Final Answer: """
         model_name = self.model_config["name"]
         logging.info(f"Starting {method} evaluation on {dataset_name} with {num_questions} questions using {self.model_config['display_name']} via {self.chat_instance_type}")
         
-        # Create output directory with model-specific path
-        output_dir = get_output_dir(method, dataset_name, model_name)
+        # Create output directory with new structure: model/dataset/method
+        output_dir = get_output_dir(method, dataset_name, model_name, self.output_base_dir)
         os.makedirs(output_dir, exist_ok=True)
         
         # Load dataset
@@ -515,45 +523,125 @@ Final Answer: """
             "timestamp": datetime.now().isoformat()
         }
         
-        # Save detailed results
-        detailed_results = {
-            "summary": summary,
-            "results": results,
-            "errors": errors,
-            "configuration": {
-                "model_config": self.model_config,
-                "method_config": PROMPTING_METHODS[method],
-                "chat_instance_type": self.chat_instance_type,
-                "random_seed": random_seed
-            }
-        }
+        # Use enhanced results logger to save results
+        results_file, summary_file = self.results_logger.save_run_results(
+            results, summary, model_name, dataset_name, method, self.chat_instance_type
+        )
         
-        results_file = os.path.join(output_dir, f"results_{dataset_name}_{method}_{self.model_config['name']}_{self.chat_instance_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
-        with open(results_file, 'w', encoding='utf-8') as f:
-            json.dump(detailed_results, f, indent=2, ensure_ascii=False)
-        
-        # Save summary
-        summary_file = os.path.join(output_dir, f"summary_{dataset_name}_{method}_{self.model_config['name']}_{self.chat_instance_type}.json")
-        with open(summary_file, 'w', encoding='utf-8') as f:
-            json.dump(summary, f, indent=2, ensure_ascii=False)
+        # Generate aggregated summaries
+        self.results_logger.aggregate_method_results(model_name, dataset_name, method)
+        self.results_logger.aggregate_dataset_results(model_name, dataset_name) 
+        self.results_logger.aggregate_model_results(model_name)
         
         logging.info(f"Completed {method} evaluation on {dataset_name} using {self.model_config['display_name']} via {self.chat_instance_type}")
         logging.info(f"Results: {correct_answers}/{total_questions} correct ({accuracy:.2%})")
         logging.info(f"Results saved to: {results_file}")
+
+        return {
+            "summary": summary,
+            "results": results,
+            "errors": errors
+        }
+    
+    def run_all_configurations(self, model_name: str, num_questions: int = 50, random_seed: int = 42):
+        """Run all dataset-method combinations for a specific model."""
+        configurations = get_all_configurations_for_model(model_name)
         
-        return detailed_results
+        logging.info(f"Running all {len(configurations)} configurations for {model_name}")
+        print(f"Starting comprehensive evaluation for {model_name} ({len(configurations)} configurations)")
+        
+        results_summary = []
+        start_time = time.time()
+        
+        for i, config in enumerate(configurations):
+            dataset = config["dataset"]
+            method = config["method"]
+            
+            print(f"\nProgress: {i+1}/{len(configurations)} - Running {dataset} with {method}")
+            logging.info(f"Progress: {i+1}/{len(configurations)} - Running {dataset} with {method}")
+            
+            try:
+                result = self.run_dataset_evaluation(
+                    dataset_name=dataset,
+                    method=method,
+                    num_questions=num_questions,
+                    random_seed=random_seed
+                )
+                
+                summary = result["summary"]
+                results_summary.append({
+                    "dataset": dataset,
+                    "method": method,
+                    "accuracy": summary["accuracy"],
+                    "total_questions": summary["total_questions"],
+                    "correct_answers": summary["correct_answers"],
+                    "total_time": summary["total_time"],
+                    "status": "completed"
+                })
+                
+                print(f"  Result: {summary['correct_answers']}/{summary['total_questions']} correct ({summary['accuracy']:.2%})")
+                
+            except Exception as e:
+                logging.error(f"Failed to run {dataset} with {method}: {e}")
+                results_summary.append({
+                    "dataset": dataset,
+                    "method": method,
+                    "status": "failed",
+                    "error": str(e)
+                })
+                print(f"  Failed: {e}")
+        
+        end_time = time.time()
+        total_time = end_time - start_time
+        
+        # Create comprehensive summary
+        successful_runs = [r for r in results_summary if r.get("status") == "completed"]
+        failed_runs = [r for r in results_summary if r.get("status") == "failed"]
+        
+        comprehensive_summary = {
+            "model": model_name,
+            "total_configurations": len(configurations),
+            "successful_runs": len(successful_runs),
+            "failed_runs": len(failed_runs),
+            "total_time": total_time,
+            "avg_time_per_configuration": total_time / len(configurations),
+            "results": results_summary,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Save comprehensive summary
+        model_dir = os.path.join(self.output_base_dir, model_name)
+        os.makedirs(model_dir, exist_ok=True)
+        comprehensive_file = os.path.join(model_dir, f"comprehensive_results_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+        with open(comprehensive_file, 'w', encoding='utf-8') as f:
+            json.dump(comprehensive_summary, f, indent=2, ensure_ascii=False)
+        
+        print(f"\n{'='*60}")
+        print(f"COMPREHENSIVE EVALUATION COMPLETE")
+        print(f"{'='*60}")
+        print(f"Model: {model_name}")
+        print(f"Total Configurations: {len(configurations)}")
+        print(f"Successful: {len(successful_runs)}")
+        print(f"Failed: {len(failed_runs)}")
+        print(f"Total Time: {total_time:.2f}s ({total_time/60:.1f}m)")
+        print(f"Results saved to: {comprehensive_file}")
+        print(f"{'='*60}")
+        
+        return comprehensive_summary
 
 def main():
     """Main function for command-line usage."""
     parser = argparse.ArgumentParser(description="Updated SLM Runner with modular chat instances")
     
-    parser.add_argument("--dataset", required=True, choices=get_supported_datasets(),
+    parser.add_argument("--dataset", choices=get_supported_datasets(),
                        help="Dataset to evaluate on")
-    parser.add_argument("--method", required=True, choices=list(PROMPTING_METHODS.keys()),
+    parser.add_argument("--method", choices=list(PROMPTING_METHODS.keys()),
                        help="Prompting method to use")
     parser.add_argument("--model", choices=get_supported_models(), 
                        default=DEFAULT_MODEL,
                        help="Model to use")
+    parser.add_argument("--all", action="store_true",
+                       help="Run all dataset-method combinations for the specified model")
     parser.add_argument("--chat_instance", choices=get_supported_chat_instances(),
                        default=DEFAULT_CHAT_INSTANCE,
                        help="Chat instance type to use")
@@ -565,6 +653,15 @@ def main():
                        help="Custom output directory")
     
     args = parser.parse_args()
+    
+    # Validate argument combinations
+    if args.all and (args.dataset or args.method):
+        print("Error: --all cannot be used with --dataset or --method")
+        sys.exit(1)
+    
+    if not args.all and (not args.dataset or not args.method):
+        print("Error: --dataset and --method are required unless --all is used")
+        sys.exit(1)
     
     try:
         # Validate configuration for selected chat instance
@@ -579,29 +676,41 @@ def main():
             output_base_dir=args.output_dir
         )
         
-        # Run evaluation
-        results = runner.run_dataset_evaluation(
-            dataset_name=args.dataset,
-            method=args.method,
-            num_questions=args.num_questions,
-            random_seed=args.random_seed
-        )
-        
-        # Print summary
-        summary = results["summary"]
-        print(f"\n{'='*50}")
-        print(f"EVALUATION COMPLETE")
-        print(f"{'='*50}")
-        print(f"Dataset: {summary['dataset']}")
-        print(f"Method: {summary['method']}")
-        print(f"Model: {summary['model']}")
-        print(f"Chat Instance: {summary['chat_instance_type']}")
-        print(f"Accuracy: {summary['correct_answers']}/{summary['total_questions']} ({summary['accuracy']:.2%})")
-        print(f"Total Time: {summary['total_time']:.2f}s")
-        print(f"Avg Time/Question: {summary['avg_time_per_question']:.2f}s")
-        if summary['total_errors'] > 0:
-            print(f"Errors: {summary['total_errors']}")
-        print(f"{'='*50}")
+        if args.all:
+            # Run all configurations for the specified model
+            comprehensive_results = runner.run_all_configurations(
+                model_name=args.model,
+                num_questions=args.num_questions,
+                random_seed=args.random_seed
+            )
+        else:
+            # Run single evaluation
+            results = runner.run_dataset_evaluation(
+                dataset_name=args.dataset,
+                method=args.method,
+                num_questions=args.num_questions,
+                random_seed=args.random_seed
+            )
+            
+            # Print summary
+            summary = results["summary"]
+            print(f"\n{'='*50}")
+            print(f"EVALUATION COMPLETE")
+            print(f"{'='*50}")
+            print(f"Dataset: {summary['dataset']}")
+            print(f"Method: {summary['method']}")
+            print(f"Model: {summary['model']}")
+            print(f"Chat Instance: {summary['chat_instance_type']}")
+            print(f"Accuracy: {summary['correct_answers']}/{summary['total_questions']} ({summary['accuracy']:.2%})")
+            print(f"Total Time: {summary['total_time']:.2f}s")
+            print(f"Avg Time/Question: {summary['avg_time_per_question']:.2f}s")
+            if 'token_usage' in summary:
+                token_usage = summary['token_usage']
+                print(f"Total Tokens: {token_usage['total_tokens']} (In: {token_usage['total_input_tokens']}, Out: {token_usage['total_output_tokens']})")
+                print(f"Avg Tokens/Question: {token_usage['avg_total_tokens_per_question']:.1f}")
+            if summary['total_errors'] > 0:
+                print(f"Errors: {summary['total_errors']}")
+            print(f"{'='*50}")
         
     except Exception as e:
         logging.error(f"Evaluation failed: {e}")

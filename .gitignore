@@ -180,3 +180,5 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 /SLM_Results
+/.claude
+/dataset

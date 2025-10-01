@@ -74,7 +74,17 @@ class GoogleAIStudioChatInstance(BaseChatInstance):
         self.client = genai.Client(api_key=api_key)
         self.model = model_config["model"]
         
-        logging.info(f"Initialized {self.display_name} via Google AI Studio")
+        # Initialize rate limiter
+        try:
+            from slm_config import RATE_LIMITS, RETRY_CONFIG
+            rate_limits = RATE_LIMITS.get(model_config["name"], RATE_LIMITS["gemma3_4b"])
+            from utils.rate_limiter import RateLimiter
+            self.rate_limiter = RateLimiter(model_config["name"], rate_limits, RETRY_CONFIG)
+            logging.info(f"Initialized {self.display_name} via Google AI Studio with rate limiting")
+        except Exception as e:
+            logging.warning(f"Could not initialize rate limiter: {e}")
+            self.rate_limiter = None
+            logging.info(f"Initialized {self.display_name} via Google AI Studio without rate limiting")
     
     def simple_chat(self, message: str, image_path: str = None) -> str:
         """Simple single-turn chat with optional image support."""
@@ -85,15 +95,38 @@ class GoogleAIStudioChatInstance(BaseChatInstance):
             if image_path and self.supports_vision:
                 image = self._load_image(image_path)
                 if image:
-                    # Convert to base64
-                    buffer = io.BytesIO()
-                    image.save(buffer, format='PNG')
-                    image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
-                    
-                    parts.append(self.types.Part.from_uri(
-                        file_uri=f"data:image/png;base64,{image_data}",
-                        mime_type="image/png"
-                    ))
+                    try:
+                        # Validate and resize image if necessary
+                        width, height = image.size
+                        if width > 3072 or height > 3072:
+                            # Resize large images
+                            image.thumbnail((3072, 3072), Image.Resampling.LANCZOS)
+                            logging.info(f"Resized image from {width}x{height} to {image.size}")
+                        
+                        # Convert to RGB if necessary
+                        if image.mode not in ('RGB', 'RGBA'):
+                            image = image.convert('RGB')
+                        
+                        buffer = io.BytesIO()
+                        image.save(buffer, format='PNG', optimize=True)
+                        
+                        # Check file size (Google AI Studio has limits)
+                        buffer_size = len(buffer.getvalue())
+                        if buffer_size > 4 * 1024 * 1024:  # 4MB limit
+                            logging.warning(f"Image too large ({buffer_size/1024/1024:.1f}MB), compressing...")
+                            buffer = io.BytesIO()
+                            image.save(buffer, format='JPEG', quality=85, optimize=True)
+                            mime_type = "image/jpeg"
+                        else:
+                            mime_type = "image/png"
+                        
+                        parts.append(self.types.Part.from_bytes(
+                            data=buffer.getvalue(),
+                            mime_type=mime_type
+                        ))
+                    except Exception as img_error:
+                        logging.error(f"Error processing image {image_path}: {img_error}")
+                        # Continue without image if there's an error
             
             contents = [self.types.Content(role="user", parts=parts)]
             
@@ -102,11 +135,28 @@ class GoogleAIStudioChatInstance(BaseChatInstance):
                 max_output_tokens=self.model_config.get("max_tokens", 8192)
             )
             
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=contents,
-                config=config
-            )
+            # Define the API call function for retry logic
+            def make_api_call():
+                return self.client.models.generate_content(
+                    model=self.model,
+                    contents=contents,
+                    config=config
+                )
+            
+            # Use rate limiter with exponential backoff if available
+            if self.rate_limiter:
+                response = self.rate_limiter.exponential_backoff_retry(make_api_call)
+            else:
+                response = make_api_call()
+            
+            # Store usage metadata for token counting
+            self.last_usage_metadata = None
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                self.last_usage_metadata = {
+                    "prompt_token_count": response.usage_metadata.prompt_token_count,
+                    "candidates_token_count": response.usage_metadata.candidates_token_count,
+                    "total_token_count": response.usage_metadata.total_token_count
+                }
             
             return response.text
         except Exception as e:
@@ -121,14 +171,32 @@ class GoogleAIStudioChatInstance(BaseChatInstance):
             if image_path and self.supports_vision:
                 image = self._load_image(image_path)
                 if image:
-                    buffer = io.BytesIO()
-                    image.save(buffer, format='PNG')
-                    image_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
-                    
-                    parts.append(self.types.Part.from_uri(
-                        file_uri=f"data:image/png;base64,{image_data}",
-                        mime_type="image/png"
-                    ))
+                    try:
+                        # Validate and resize image if necessary
+                        width, height = image.size
+                        if width > 3072 or height > 3072:
+                            image.thumbnail((3072, 3072), Image.Resampling.LANCZOS)
+                        
+                        if image.mode not in ('RGB', 'RGBA'):
+                            image = image.convert('RGB')
+                        
+                        buffer = io.BytesIO()
+                        image.save(buffer, format='PNG', optimize=True)
+                        
+                        buffer_size = len(buffer.getvalue())
+                        if buffer_size > 4 * 1024 * 1024:
+                            buffer = io.BytesIO()
+                            image.save(buffer, format='JPEG', quality=85, optimize=True)
+                            mime_type = "image/jpeg"
+                        else:
+                            mime_type = "image/png"
+                        
+                        parts.append(self.types.Part.from_bytes(
+                            data=buffer.getvalue(),
+                            mime_type=mime_type
+                        ))
+                    except Exception as img_error:
+                        logging.error(f"Error processing image {image_path}: {img_error}")
             
             contents = [self.types.Content(role="user", parts=parts)]
             
@@ -137,11 +205,21 @@ class GoogleAIStudioChatInstance(BaseChatInstance):
                 max_output_tokens=self.model_config.get("max_tokens", 8192)
             )
             
-            for chunk in self.client.models.generate_content_stream(
-                model=self.model,
-                contents=contents,
-                config=config
-            ):
+            # Define the API call function for retry logic
+            def make_stream_call():
+                return self.client.models.generate_content_stream(
+                    model=self.model,
+                    contents=contents,
+                    config=config
+                )
+            
+            # Use rate limiter with exponential backoff if available
+            if self.rate_limiter:
+                stream = self.rate_limiter.exponential_backoff_retry(make_stream_call)
+            else:
+                stream = make_stream_call()
+            
+            for chunk in stream:
                 yield chunk.text
         except Exception as e:
             logging.error(f"Error in Google AI Studio streaming_chat: {e}")

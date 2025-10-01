@@ -24,14 +24,16 @@ This is a refactored version of the SLM (Small Language Model) TeamMedAgents tha
 ## Architecture
 
 ```
-slm_runner_updated.py (Main Runner)
-├── slm_config_updated.py (Configuration)
+slm_runner.py (Main Runner)
+├── slm_config.py (Configuration)
 ├── chat_instances.py (Modular Chat Providers)
 │   ├── BaseChatInstance (Abstract Base)
 │   ├── GoogleAIStudioChatInstance
 │   ├── HuggingFaceChatInstance
 │   └── ChatInstanceFactory
-└── dataset_runner.py (Dataset Loading)
+├── utils/
+│   └── results_logger.py (Enhanced Results & Token Tracking)
+└── medical_datasets/ (Dataset Loading)
 ```
 
 ## Environment Setup
@@ -62,19 +64,24 @@ huggingface-cli login
 ### Basic Usage
 ```bash
 # Using Google AI Studio (default)
-python slm_runner_updated.py --dataset medqa --method zero_shot --model gemma3_4b
+python slm_runner.py --dataset medqa --method zero_shot --model gemma3_4b
 
 # Using Hugging Face
-python slm_runner_updated.py --dataset medqa --method zero_shot --model gemma3_4b --chat_instance huggingface
+python slm_runner.py --dataset medqa --method zero_shot --model gemma3_4b --chat_instance huggingface
 
 # Using MedGemma with few-shot
-python slm_runner_updated.py --dataset medqa --method few_shot --model medgemma_4b --chat_instance google_ai_studio
+python slm_runner.py --dataset medqa --method few_shot --model medgemma_4b --chat_instance google_ai_studio
 ```
 
 ### Comprehensive Evaluation
 ```bash
-# Run updated comprehensive evaluation
-run_slm_comprehensive_updated.bat
+# Run all configurations for specific model
+python slm_runner.py --model gemma3_4b --all --num_questions 20
+python slm_runner.py --model medgemma_4b --all --num_questions 20
+
+# Or use batch files
+run_all_gemma3.bat
+run_all_medgemma.bat
 ```
 
 ### Testing Chat Instances
@@ -86,7 +93,7 @@ python test_chat_instances.py
 ## Configuration
 
 ### Model Configuration
-Models are configured in `slm_config_updated.py` with provider-specific settings:
+Models are configured in `slm_config.py` with provider-specific settings:
 
 ```python
 "gemma3_4b": {
@@ -143,16 +150,19 @@ response = runner.agent.simple_chat("Analyze this medical image", image_path="pa
 ```
 SLM_Results/
 ├── gemma3_4b/
-│   ├── zero-shot/
-│   ├── few-shot/
-│   └── cot/
+│   ├── medqa/
+│   │   ├── zero-shot/ (results, summaries, token tracking)
+│   │   ├── few-shot/
+│   │   └── cot/
+│   ├── medmcqa/
+│   └── comprehensive_results_gemma3_4b_*.json
 └── medgemma_4b/
-    ├── zero-shot/
-    ├── few-shot/
-    └── cot/
+    ├── medqa/
+    ├── medmcqa/
+    └── comprehensive_results_medgemma_4b_*.json
 ```
 
-Results include chat instance information for tracking.
+Results include detailed token usage, aggregated summaries, and comprehensive evaluation reports.
 
 ## Extension Guide
 
@@ -205,7 +215,7 @@ python test_chat_instances.py
 
 ### Quick Test
 ```bash
-python slm_runner_updated.py test
+python slm_runner.py test
 ```
 
 ### Comprehensive Testing
@@ -213,9 +223,13 @@ python slm_runner_updated.py test
 python test_chat_instances.py
 ```
 
-### Batch Testing
+### Run All Configurations
 ```bash
-run_slm_comprehensive_updated.bat
+# For Gemma3-4B
+python slm_runner.py --model gemma3_4b --all
+
+# For MedGemma-4B
+python slm_runner.py --model medgemma_4b --all
 ```
 
 ## Troubleshooting
@@ -240,8 +254,8 @@ run_slm_comprehensive_updated.bat
 
 ### Validation
 ```bash
-python -c "from slm_config_updated import validate_configuration; print(validate_configuration('google_ai_studio'))"
-python -c "from slm_config_updated import validate_configuration; print(validate_configuration('huggingface'))"
+python -c "from slm_config import validate_configuration; print(validate_configuration('google_ai_studio'))"
+python -c "from slm_config import validate_configuration; print(validate_configuration('huggingface'))"
 ```
 
 ## Future Extensions
