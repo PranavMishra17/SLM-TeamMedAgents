@@ -1,0 +1,22 @@
+⚠️ DEPRECATED COMPONENTS - MIGRATED TO GOOGLE ADK
+
+All files in this directory are deprecated and replaced by the ADK-based system.
+
+For new development, use:
+- adk_agents/ package (Google ADK-based implementation)
+- run_simulation_adk.py (ADK-based simulation runner)
+
+Mapping:
+- gemma_agent.py → adk_agents/gemma_agent_adk.py
+- agent_recruiter.py → adk_agents/dynamic_recruiter_adk.py
+- simulation_rounds.py → adk_agents/three_round_debate_adk.py
+- decision_aggregator.py → adk_agents/decision_aggregator_adk.py
+- multi_agent_system.py → adk_agents/multi_agent_system_adk.py
+- rate_limit_manager.py → Handled by ADK framework
+
+These files are kept for:
+- Backward compatibility
+- Comparison testing
+- Reference implementation
+
+Last updated: 2025-10-16

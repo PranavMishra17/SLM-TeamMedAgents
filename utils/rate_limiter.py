@@ -126,14 +126,11 @@ class RateLimiter:
         
         for attempt in range(max_retries + 1):
             try:
-                # Wait for rate limits before attempting request
-                estimated_tokens = kwargs.get('estimated_tokens', 0)
-                wait_time = self.wait_if_needed(estimated_tokens)
-                
-                # Execute the function
+                # Execute the function directly - let API return 429 if rate limited
                 result = func(*args, **kwargs)
-                
+
                 # Record successful request if we have token count
+                estimated_tokens = kwargs.get('estimated_tokens', 0)
                 if hasattr(result, '__dict__') and 'usage_metadata' in str(result):
                     # Try to extract token count from result
                     try:

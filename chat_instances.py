@@ -1,4 +1,19 @@
 """
+⚠️ DEPRECATED: This module is being replaced by Google ADK integration.
+
+This file contains the old custom chat instance implementations.
+For new development, use the ADK-based system in adk_agents/ package.
+
+See:
+- adk_agents/gemma_agent_adk.py for ADK-based Gemma agents
+- adk_agents/multi_agent_system_adk.py for the new system
+- run_simulation_adk.py for the ADK-based simulation runner
+
+This module is kept for backward compatibility and comparison purposes.
+
+---
+
+Original documentation:
 Modular chat instances for different model providers.
 Supports Google AI Studio, Hugging Face, and future extensibility.
 """
