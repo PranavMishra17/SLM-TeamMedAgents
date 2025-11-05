@@ -1,0 +1,258 @@
+{
+  "medqa": [
+    {
+      "question": "A 54-year-old man with alcoholism comes to the emergency department because of vomiting blood for 6 hours. He has had 3–4 episodes in which he has vomited dark red blood during this period. He has had no epigastric pain or tarry stools. On arrival, his temperature is 37.3°C (99.1°F), pulse is 134/min, and blood pressure is 80/50 mm Hg. He is resuscitated with 0.9% saline and undergoes an emergency upper endoscopy, which shows actively bleeding varices. Band ligation of the varices is done and hemostasis is achieved. He is diagnosed with Child class B cirrhosis. He is concerned about the possibility of recurrence of such an episode. He is asked to abstain from alcohol, to which he readily agrees. In addition to non-selective beta-blocker therapy, which of the following is the most appropriate recommendation to prevent future morbidity and mortality from this condition?",
+      "options": [
+        "A. Octreotide therapy",
+        "B. Terlipressin",
+        "C. Transjugular intrahepatic portosystemic shunt",
+        "D. Variceal ligation"
+      ],
+      "answer": "D",
+      "explanation": "Clinical reasoning required"
+    },
+    {
+      "question": "A 13-day-old male is brought in by his mother for eye redness and ocular discharge. Additionally, the mother reports that the patient has developed a cough and nasal discharge. Pregnancy and delivery were uncomplicated, but during the third trimester, the mother had limited prenatal care. Immediately after delivery, the baby was given silver nitrate drops and vitamin K. Upon visual examination of the eyes, mucoid ocular discharge and eyelid swelling are noted. A fluorescein test is negative. On lung exam, scattered crackles are appreciated. A chest radiograph is performed that shows hyperinflation with bilateral infiltrates. Which of the following is the best pharmacotherapy for this patient's underlying condition?",
+      "options": [
+        "A. Artificial tears",
+        "B. Topical erythromycin",
+        "C. Oral erythromycin",
+        "D. Intravenous acyclovir"
+      ],
+      "answer": "C",
+      "explanation": "Clinical reasoning required"
+    },
+    {
+      "question": "A 53-year-old man seeks evaluation from his physician with concerns about his blood pressure. He was recently told at a local health fair that he has high blood pressure. He has not seen a physician since leaving college because he never felt the need for medical attention. Although he feels fine, he is concerned because his father had hypertension and died due to a heart attack at 61 years of age. He does not smoke cigarettes but drinks alcohol occasionally. The blood pressure is 150/90 mm Hg today. The physical examination is unremarkable. Labs are ordered and he is asked to monitor his blood pressure at home before the follow-up visit. Two weeks later, the blood pressure is 140/90 mm Hg. The blood pressure measurements at home ranged from 130/90 to 155/95 mm Hg. An electrocardiogram (ECG) is normal. Lab tests show the following:\nSerum glucose (fasting) 88 mg/dL\n    Serum electrolytes: \nSodium 142 mEq/L\nPotassium 3.9 mEq/L\nChloride 101 mEq/L\nSerum creatinine 0.8 mg/dL\nBlood urea nitrogen 10 mg/dL\nCholesterol, total 250 mEq/L\nHDL-cholesterol 35 mEq/L\nLDL-cholesterol 186 mg/dL\nTriglycerides 250 mg/dL\n    Urinalysis:  \nGlucose negative\nKetones negative\nLeucocytes negative\nNitrite negative\nRBC negative\nCasts negative\nRegular exercise and a 'heart healthy diet' are advised. He is started on lisinopril for hypertension. Which of the following medications should be added to this patient?",
+      "options": [
+        "A. Atorvastatin",
+        "B. Niacin",
+        "C. Gemfibrozil",
+        "D. Orlistat"
+      ],
+      "answer": "A",
+      "explanation": "Clinical reasoning required"
+    }
+  ],
+  "medmcqa": [
+    {
+      "question": "In extraperitoneal approach, to left sympathectomy the following may be injured ?",
+      "options": [
+        "A. Ureter",
+        "B. Gonadal vessels",
+        "C. A+B",
+        "D. IVC"
+      ],
+      "answer": "C",
+      "explanation": "Ans. is 'c' i.e., A+B"
+    },
+    {
+      "question": "Acoustic schwannoma- most common site is:\n\nAnswer options provide context: A: CP angle | B: Fossa of Rosenmuller | C: Retropharyngeal space | D: None",
+      "options": [
+        "A. CP angle",
+        "B. Fossa of Rosenmuller",
+        "C. Retropharyngeal space",
+        "D. None"
+      ],
+      "answer": "A",
+      "explanation": "Acoustic neuromas (vestibular schwannomas) are benign Schwann cell tumors that typically arise from the vestibular poion of the eighth cranial nerve. The acoustic neuroma is the most common tumor of the cerebellopontine angle."
+    },
+    {
+      "question": "Apple–jelly nodules are seen in –\n\nAnswer options provide context: A: Lupus vulgaris | B: DLE | C: Lichen planus | D: Psoriasis",
+      "options": [
+        "A. Lupus vulgaris",
+        "B. DLE",
+        "C. Lichen planus",
+        "D. Psoriasis"
+      ],
+      "answer": "A",
+      "explanation": "\"Apple jelly nodules\" : - Characterized by yellow-brown nodules with tiny darker granules. On probing, the nodules are soft jelly-like seen in cutaneous TB infection Lupus vulgaris."
+    }
+  ],
+  "mmlu_pro": [
+    {
+      "question": "Which of the following is not a beneficial effect of exercise in people with diabetes:\n",
+      "options": [
+        "A. Decreased muscle mass",
+        "B. Impaired digestion",
+        "C. Worsening of vision",
+        "D. Increase in blood sugar levels",
+        "E. Reduction of bone density",
+        "F. Increase in body fat percentage",
+        "G. Hypoglycaemia"
+      ],
+      "answer": "G",
+      "explanation": "Systematic health science reasoning"
+    },
+    {
+      "question": "Which of the following HPV viruses are known to cause cervical cancer?",
+      "options": [
+        "A. Viruses of all 5 clades",
+        "B. Types 14, 16, 18, 31, 45",
+        "C. None are oncogenic per se",
+        "D. Types 1-180"
+      ],
+      "answer": "C",
+      "explanation": "Systematic health science reasoning"
+    },
+    {
+      "question": "With respect to job training, younger workers",
+      "options": [
+        "A. Have less experience and therefore need more training",
+        "B. Do not benefit from training as much as older workers do",
+        "C. Are less open to feedback than older workers",
+        "D. Prefer to have classes by themselves",
+        "E. Always learn faster than older workers",
+        "F. Always perform worse on the job than trained older workers",
+        "G. Receive more opportunities than older workers",
+        "H. Are not interested in job training",
+        "I. Perform better on the job than trained older workers",
+        "J. Prefer online training over traditional classroom learning"
+      ],
+      "answer": "G",
+      "explanation": "Systematic health science reasoning"
+    }
+  ],
+  "pubmedqa": [
+    {
+      "question": "Research Question: Processing fluency effects: can the content and presentation of participant information sheets influence recruitment and participation for an antenatal intervention?\n\nAbstract Context:\ncontexts: [\"To assess the extent to which the title and font of participant information sheets (PISs) can influence pregnant women's and trainee midwives' perceptions of an antenatal intervention.\", 'Pregnant women (n=35) and trainee midwives (n=36) were randomly presented with one of four PISs where the title and font of the PIS had been manipulated to create four experimental conditions (i.e., Double Fluent; Double Awkward; Fluent Title-Awkward Font; Awkward Title-Fluent Font). After reading the PIS, participants rated their perceptions of the intervention (i.e., Attractiveness, Complexity, Expected Risk, Required Effort) using five-point Likert scales.', 'A 4×2 factorial multivariate analysis of variance revealed that pregnant women rated the Double Awkward condition as significantly more complex than the Double Fluent (p=.024) and Awkward Title-Fluent Font (p=.021) conditions.']\n\nlabels: ['OBJECTIVE', 'METHODS', 'RESULTS']\n\nmeshes: ['Adult', 'Female', 'Humans', 'Midwifery', 'Multivariate Analysis', 'Pamphlets', 'Patient Selection', 'Pregnancy', 'Pregnant Women', 'Prenatal Care', 'Reading']\n\nreasoning_required_pred: ['y', 'e', 's']\n\nreasoning_free_pred: ['y', 'e', 's']\n\n",
+      "options": [
+        "yes",
+        "no",
+        "maybe"
+      ],
+      "answer": "yes",
+      "explanation": "Evidence-based analysis required"
+    },
+    {
+      "question": "Research Question: Delays in time to primary treatment after a diagnosis of breast cancer: does it impact survival?\n\nAbstract Context:\ncontexts: ['Treatment delays in breast cancer are generally thought to affect prognosis but the impact on survival remains unclear. Indicators for breast cancer care include time to primary treatment. The purpose of this study was to evaluate whether time to primary treatment (TPT) in breast cancer impacts survival.', 'A total of 648 breast cancer patients treated in the University Malaya Medical Center (UMMC), Malaysia between 2004 and 2005 were included in the study. TPT was calculated from the date of pathological diagnosis to the date of primary treatment. Mortality data was obtained from the National Registry of Births and Deaths. Last date of follow-up was November 2010.', 'Median TPT was 18 days. Majority 508 (69.1%) of the patients received treatment within 30 days after diagnosis. The majority was surgically treated. Ethnicity (p=0.002) and stage at presentation (p=0.007) were significantly associated with delayed TPT. Malay ethnicity had delayed TPT compared to the Chinese; Hazard Ratio (HR) 1.9 (Confidence Interval (CI) 1.237, 2.987). Delayed TPT did not affect overall survival on univariate and multivariate analyses.']\n\nlabels: ['OBJECTIVE', 'METHOD', 'RESULTS']\n\nmeshes: ['Adult', 'Aged', 'Breast Neoplasms', 'Female', 'Humans', 'Malaysia', 'Middle Aged', 'Neoplasm Staging', 'Retrospective Studies', 'Survival Analysis', 'Time Factors']\n\nreasoning_required_pred: ['n', 'o']\n\nreasoning_free_pred: ['n', 'o']\n\n",
+      "options": [
+        "yes",
+        "no",
+        "maybe"
+      ],
+      "answer": "no",
+      "explanation": "Evidence-based analysis required"
+    },
+    {
+      "question": "Research Question: Detailed analysis of sputum and systemic inflammation in asthma phenotypes: are paucigranulocytic asthmatics really non-inflammatory?\n\nAbstract Context:\ncontexts: ['The technique of induced sputum has allowed to subdivide asthma patients into inflammatory phenotypes according to their level of granulocyte airway infiltration. There are very few studies which looked at detailed sputum and blood cell counts in a large cohort of asthmatics divided into inflammatory phenotypes. The purpose of this study was to analyze sputum cell counts, blood leukocytes and systemic inflammatory markers in these phenotypes, and investigate how those groups compared with healthy subjects.', 'We conducted a retrospective cross-sectional study on 833 asthmatics recruited from the University Asthma Clinic of Liege and compared them with 194 healthy subjects. Asthmatics were classified into inflammatory phenotypes.', 'The total non-squamous cell count per gram of sputum was greater in mixed granulocytic and neutrophilic phenotypes as compared to eosinophilic, paucigranulocytic asthma and healthy subjects (p\\u2009<\\u20090.005). Sputum eosinophils (in absolute values and percentages) were increased in all asthma phenotypes including paucigranulocytic asthma, compared to healthy subjects (p\\u2009<\\u20090.005). Eosinophilic asthma showed higher absolute sputum neutrophil and lymphocyte counts than healthy subjects (p\\u2009<\\u20090.005), while neutrophilic asthmatics had a particularly low number of sputum macrophages and epithelial cells. All asthma phenotypes showed an increased blood leukocyte count compared to healthy subjects (p\\u2009<\\u20090.005), with paucigranulocytic asthmatics having also increased absolute blood eosinophils compared to healthy subjects (p\\u2009<\\u20090.005). Neutrophilic asthma had raised CRP and fibrinogen while eosinophilic asthma only showed raised fibrinogen compared to healthy subjects (p\\u2009<\\u20090.005).']\n\nlabels: ['BACKGROUND', 'METHODS', 'RESULTS']\n\nmeshes: ['Adult', 'Aged', 'Asthma', 'C-Reactive Protein', 'Case-Control Studies', 'Cross-Sectional Studies', 'Eosinophils', 'Female', 'Fibrinogen', 'Granulocytes', 'Humans', 'Inflammation', 'Leukocyte Count', 'Lymphocyte Count', 'Macrophages', 'Male', 'Middle Aged', 'Neutrophils', 'Phenotype', 'Retrospective Studies', 'Sputum']\n\nreasoning_required_pred: ['m', 'a', 'y', 'b', 'e']\n\nreasoning_free_pred: ['n', 'o']\n\n",
+      "options": [
+        "yes",
+        "no",
+        "maybe"
+      ],
+      "answer": "maybe",
+      "explanation": "Evidence-based analysis required"
+    }
+  ],
+  "medbullets": [
+    {
+      "question": "A 14-year-old boy is brought to the pediatrician for behavioral issues. At school, he interrupts class by making barking noises. His mother notes that he has been making throat-clearing noises daily for the past 2 years. He has no medical problems and takes no medications. He gets along with his 2 brothers, plays turn-taking games with his friends, and completes his chores. His temperature is 98.4°F (36.9°C), blood pressure is 118/72 mmHg, pulse is 72/min, and respirations are 16/min. On exam, he grimaces several times and blinks his eyes rapidly. He does not appear to be reacting to internal stimuli. His mood and affect are normal. Which of the following is the most appropriate treatment for this patient?\n\nUSMLE CLINICAL CONTEXT:\n\nQuestion Characteristics:\n- USMLE Step Level: Step 2 CK/CS\n- Question Type: Clinical Reasoning\n- Clinical Complexity: intermediate\n- Topic Category: treatment\n\nMedical Domain Analysis:\nPrimary specialties: psychiatry\nClinical focus: treatment\n\nClinical Skills Required:\nReasoning type: clinical_knowledge\nCompetencies: medical_knowledge, clinical_reasoning\n\nQuestion Difficulty Assessment:\n- Estimated Difficulty: high\n- Reasoning Type: clinical_knowledge\n- Knowledge Domain: Step 2 CK/CS\n",
+      "options": [
+        "A. Clozapine",
+        "B. Dextroamphetamine",
+        "C. Fluoxetine",
+        "D. Haloperidol",
+        "E. Methylphenidate"
+      ],
+      "answer": "D",
+      "explanation": "Clinical case-based reasoning"
+    },
+    {
+      "question": "A 69-year-old man presents to his primary care physician with hip and back pain. He states this weekend he had a barbecue. When he was lifting a heavy object, he suddenly felt pain in his lower back. He describes the pain as in his buttocks but states that at times it travels down his leg. He states that it feels electrical and burning in nature. The patient has a medical history of obesity, diabetes, depression, anxiety, diverticulosis, constipation, and a surgical repair of his anterior cruciate ligament. His current medications include metformin, insulin, lisinopril, fluoxetine, and sodium docusate. His temperature is 98.6°F (37°C), blood pressure is 131/82 mmHg, pulse is 82/min, and respirations are 14/min. On physical exam, he is found to have an intact motor and sensory function in his lower extremities bilaterally. No clonus or Babinski sign is appreciated. An exam of the cranial nerves is intact bilaterally. Which of the following is most likely to help confirm the diagnosis?\n\nUSMLE CLINICAL CONTEXT:\n\nQuestion Characteristics:\n- USMLE Step Level: Step 2 CK/CS\n- Question Type: Clinical Vignette\n- Clinical Complexity: advanced\n- Topic Category: diagnosis\n\nMedical Domain Analysis:\nPrimary specialties: endocrinology, psychiatry, surgery\nClinical focus: diagnosis\n\nClinical Skills Required:\nReasoning type: diagnostic_reasoning\nCompetencies: medical_knowledge, clinical_reasoning, diagnostic_skills\n\nQuestion Difficulty Assessment:\n- Estimated Difficulty: high\n- Reasoning Type: diagnostic_reasoning\n- Knowledge Domain: Step 2 CK/CS\n",
+      "options": [
+        "A. Flexion, abduction, and external rotation of the thigh",
+        "B. Internal rotation of the extended hip",
+        "C. Palpating the paraspinal muscles",
+        "D. Radiography",
+        "E. Straight leg raise"
+      ],
+      "answer": "E",
+      "explanation": "Clinical case-based reasoning"
+    },
+    {
+      "question": "A 57-year-old woman presents to the emergency department for a headache. She was at home when a sudden headache began with greater severity than she had experienced in the past. She presented within 30 minutes of symptom onset. The patient has a medical history of sinusitis, constipation, diabetes, and pelvic inflammatory disease. Her current medications include fexofenadine, oral contraceptive pills, and metformin. She is currently taking amoxicillin for a sinus infection. She smokes 1 pack of cigarettes per day and drinks 2-3 alcoholic beverages daily. Her temperature is 99.5°F (37.5°C), blood pressure is 187/118 mmHg, pulse is 120/min, respirations are 17/min, and oxygen saturation is 98% on room air. On physical exam, the patient is noted to be uncomfortable with the appearance shown in Figure A. Neurological exam reveals a confused woman who is now complaining of \"seeing double.\" Cardiopulmonary exam reveals mild bibasilar crackles and tachycardia. Abdominal exam is within normal limits. Which of the following is the most appropriate initial step in management?\n\nUSMLE CLINICAL CONTEXT:\n\nQuestion Characteristics:\n- USMLE Step Level: Step 2 CK/CS\n- Question Type: Clinical Vignette\n- Clinical Complexity: advanced\n- Topic Category: diagnosis\n\nMedical Domain Analysis:\nPrimary specialties: neurology, infectious_disease, endocrinology\nClinical focus: diagnosis\n\nClinical Skills Required:\nReasoning type: clinical_knowledge\nCompetencies: medical_knowledge, clinical_reasoning\n\nQuestion Difficulty Assessment:\n- Estimated Difficulty: high\n- Reasoning Type: clinical_knowledge\n- Knowledge Domain: Step 2 CK/CS\n",
+      "options": [
+        "A. Amoxicillin-clavulinic acid",
+        "B. CT of the head",
+        "C. Dexamethasone",
+        "D. MRI of the head",
+        "E. Piperacillin-tazobactam"
+      ],
+      "answer": "E",
+      "explanation": "Clinical case-based reasoning"
+    }
+  ],
+  "ddxplus": [
+    {
+      "question": "Patient Information:\nAge: 41, Sex: F\n\nPresenting symptoms and medical history:\n- Have you had significantly increased sweating?\n- Do you have pain somewhere, related to your reason for consulting?\n- Characterize your pain:: sickening\n- Do you feel pain somewhere?: lower chest\n- Do you feel pain somewhere?: side of the chest(R)\n- Do you feel pain somewhere?: upper chest\n- Do you feel pain somewhere?: breast(R)\n- Do you feel pain somewhere?: breast(L)\n- Does the pain radiate to another location?: biceps(R)\n- Does the pain radiate to another location?: biceps(L)\n- Does the pain radiate to another location?: under the jaw\n- Does the pain radiate to another location?: shoulder(R)\n- Does the pain radiate to another location?: shoulder(L)\n- Are you experiencing shortness of breath or difficulty breathing in a significant way?\n- Do you have diabetes?\n- Are you significantly overweight compared to people of the same height as you?\n- Do you smoke cigarettes?\n- Do you constantly feel fatigued or do you have non-restful sleep?\n- Do you have high blood pressure or do you take medications to treat high blood pressure?\n- Have you ever had a heart attack or do you have angina (chest pain)?\n- Are you feeling nauseous or do you feel like vomiting?\n- Have you recently had a loss of appetite or do you get full more quickly then usually?\n- Are you a former smoker?\n- Have you traveled out of the country in the last 4 weeks?: N\n\nWhat is the most likely diagnosis?\n\nCOMPREHENSIVE MEDICAL CONTEXT:\n\nPatient Demographics:\n- Age: 41\n- Sex: F\n\nChief Complaint & Initial Presentation:\n- Initial Evidence: E_53\n\nEvidence Analysis:\n- Binary evidence: E_50\n- Binary evidence: E_53\n- Categorical evidence: E_54_@_V_193\n- Categorical evidence: E_55_@_V_29\n- Categorical evidence: E_55_@_V_55\n- Categorical evidence: E_55_@_V_101\n- Categorical evidence: E_55_@_V_159\n- Categorical evidence: E_55_@_V_160\n- Categorical evidence: E_56_@_9\n- Categorical evidence: E_57_@_V_30\n- Categorical evidence: E_57_@_V_31\n- Categorical evidence: E_57_@_V_163\n- Categorical evidence: E_57_@_V_194\n- Categorical evidence: E_57_@_V_195\n- Categorical evidence: E_58_@_3\n- Categorical evidence: E_59_@_7\n- Binary evidence: E_66\n- Binary evidence: E_69\n- Binary evidence: E_70\n- Binary evidence: E_79\n- Binary evidence: E_89\n- Binary evidence: E_104\n- Binary evidence: E_105\n- Binary evidence: E_148\n- Binary evidence: E_161\n- Binary evidence: E_191\n- Categorical evidence: E_204_@_V_10\n\nSymptom Categories:\nBinary: 12, Categorical: 15, Multi-choice: 0\n\nDifferential Diagnosis Considerations:\nDifferential diagnoses available: 19 conditions with probabilities\n\nClinical Decision Factors:\n- Case Complexity: advanced\n- Number of Evidence Points: 27\n- Diagnostic Certainty: low\n",
+      "options": [
+        "A. Possible NSTEMI / STEMI",
+        "B. Boerhaave",
+        "C. Pulmonary neoplasm",
+        "D. Anemia"
+      ],
+      "answer": "A",
+      "explanation": "Differential diagnosis based on symptoms"
+    },
+    {
+      "question": "Patient Information:\nAge: 23, Sex: F\n\nPresenting symptoms and medical history:\n- Do you live with 4 or more people?\n- Do you attend or work in a daycare?\n- Have you had significantly increased sweating?\n- Do you have pain somewhere, related to your reason for consulting?\n- Characterize your pain:: tedious\n- Characterize your pain:: heavy\n- Do you feel pain somewhere?: forehead\n- Do you feel pain somewhere?: cheek(R)\n- Does the pain radiate to another location?: nowhere\n- Do you smoke cigarettes?\n- Do you have a sore throat?\n- Do you have diffuse (widespread) muscle pain?\n- Do you have nasal congestion or a clear runny nose?\n- Have you traveled out of the country in the last 4 weeks?: N\n- Are you exposed to secondhand cigarette smoke on a daily basis?\n\nWhat is the most likely diagnosis?\n\nCOMPREHENSIVE MEDICAL CONTEXT:\n\nPatient Demographics:\n- Age: 23\n- Sex: F\n\nChief Complaint & Initial Presentation:\n- Initial Evidence: E_50\n\nEvidence Analysis:\n- Binary evidence: E_48\n- Binary evidence: E_49\n- Binary evidence: E_50\n- Binary evidence: E_53\n- Categorical evidence: E_54_@_V_154\n- Categorical evidence: E_54_@_V_183\n- Categorical evidence: E_55_@_V_89\n- Categorical evidence: E_55_@_V_108\n- Categorical evidence: E_56_@_5\n- Categorical evidence: E_57_@_V_123\n- Categorical evidence: E_58_@_6\n- Categorical evidence: E_59_@_2\n- Binary evidence: E_79\n- Binary evidence: E_97\n- Binary evidence: E_144\n- Binary evidence: E_181\n- Categorical evidence: E_204_@_V_10\n- Binary evidence: E_222\n\nSymptom Categories:\nBinary: 9, Categorical: 9, Multi-choice: 0\n\nDifferential Diagnosis Considerations:\nDifferential diagnoses available: 4 conditions with probabilities\n\nClinical Decision Factors:\n- Case Complexity: advanced\n- Number of Evidence Points: 18\n- Diagnostic Certainty: moderate\n",
+      "options": [
+        "A. URTI",
+        "B. Cluster headache",
+        "C. Chagas",
+        "D. Anemia"
+      ],
+      "answer": "A",
+      "explanation": "Differential diagnosis based on symptoms"
+    }
+  ],
+  "pmc_vqa": [
+    {
+      "question": "What is observed in the control nuclei from P. australis roots in panel (d)?",
+      "options": [
+        "A. A: Chromatin condensation",
+        "B. B: Fragmentation of nuclei",
+        "C. C: Lignin labeling",
+        "D. D: None of the above."
+      ],
+      "answer": "None of the above.",
+      "explanation": "Visual medical analysis required",
+      "has_image": true
+    },
+    {
+      "question": "What is the name of the compound represented in image (c)?",
+      "options": [
+        "A. A: Biochar",
+        "B. B: Goethite",
+        "C. C: Goethite-biochar mixture",
+        "D. D: None of the above"
+      ],
+      "answer": "Goethite-biochar mixture",
+      "explanation": "Visual medical analysis required",
+      "has_image": true
+    }
+  ],
+  "path_vqa": [
+    {
+      "question": "does typical tuberculous exudate show excellent photo typical adenocarcinoma extending through muscularis to serosa?",
+      "options": [
+        "yes",
+        "no"
+      ],
+      "answer": "no",
+      "explanation": "Pathology image interpretation",
+      "has_image": true
+    },
+    {
+      "question": "is gastrointestinal present?",
+      "options": [
+        "yes",
+        "no"
+      ],
+      "answer": "yes",
+      "explanation": "Pathology image interpretation",
+      "has_image": true
+    }
+  ]
+}

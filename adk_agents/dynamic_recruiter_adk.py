@@ -436,13 +436,17 @@ Generate Agent #{agent_num}:"""
         Returns:
             List of (role, expertise) tuples
         """
-        prompt = f"""Generate {total_agents} specialized medical roles for analyzing this question.
+        prompt = f"""You are an experienced medical expert who recruits a group of experts with diverse identities for analyzing this question.
 
 Question: {question}
 
 Options: {', '.join(options) if options else 'Open-ended'}
 
 The {total_agents} agents should have complementary expertise covering different aspects of this question.
+
+Also specify the communication structure between experts using:
+- "==" for equal collaboration (e.g., Agent_1 == Agent_2)
+- ">" for hierarchical consultation (e.g., Agent_1 > Agent_2 means Agent_1 leads, Agent_2 consults)
 
 Respond in this EXACT format:
 
@@ -454,7 +458,9 @@ AGENT 2:
 ROLE: [Specific medical specialty/role]
 EXPERTISE: [Detailed area of expertise]
 
-{'AGENT 3:\nROLE: [Specific medical specialty/role]\nEXPERTISE: [Detailed area of expertise]\n' if total_agents >= 3 else ''}{'AGENT 4:\nROLE: [Specific medical specialty/role]\nEXPERTISE: [Detailed area of expertise]' if total_agents >= 4 else ''}
+{'AGENT 3:\nROLE: [Specific medical specialty/role]\nEXPERTISE: [Detailed area of expertise]\n' if total_agents >= 3 else ''}{'AGENT 4:\nROLE: [Specific medical specialty/role]\nEXPERTISE: [Detailed area of expertise]\n' if total_agents >= 4 else ''}
+COMMUNICATION: [Structure, e.g., "Agent_1 == Agent_2 > Agent_3" or "Independent"]
+
 Generate all {total_agents} agents:"""
 
         # Update planner instruction

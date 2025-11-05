@@ -81,13 +81,14 @@ class GoogleAIStudioChatInstance(BaseChatInstance):
         except ImportError:
             raise ImportError("google-genai library not available. Install with: pip install google-genai")
         
-        # Initialize client
-        api_key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
+        # Initialize client with multi-key support
+        api_key = self._get_api_key(model_config.get('key_number', 1))
         if not api_key:
             raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY environment variable not set")
-        
+
         self.client = genai.Client(api_key=api_key)
         self.model = model_config["model"]
+        logging.info(f"Using API key #{model_config.get('key_number', 1)}")
         
         # Initialize rate limiter
         try:
@@ -100,7 +101,26 @@ class GoogleAIStudioChatInstance(BaseChatInstance):
             logging.warning(f"Could not initialize rate limiter: {e}")
             self.rate_limiter = None
             logging.info(f"Initialized {self.display_name} via Google AI Studio without rate limiting")
-    
+
+    @staticmethod
+    def _get_api_key(key_number: int = 1) -> str:
+        """
+        Get API key based on key number for parallel execution.
+
+        Args:
+            key_number: Key number (1, 2, 3, etc.)
+                1 = GOOGLE_API_KEY or GEMINI_API_KEY
+                2 = GOOGLE_API_KEY2
+                3 = GOOGLE_API_KEY3
+
+        Returns:
+            API key string
+        """
+        if key_number == 1:
+            return os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
+        else:
+            return os.environ.get(f'GOOGLE_API_KEY{key_number}')
+
     def simple_chat(self, message: str, image_path: str = None) -> str:
         """Simple single-turn chat with optional image support."""
         try:

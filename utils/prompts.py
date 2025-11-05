@@ -7,8 +7,15 @@ All prompts designed for efficient token usage while maintaining collaborative e
 Format: Use {variable} for template substitution
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 import re
+
+# Import few-shot CoT prompts
+try:
+    from .few_shot_cot_prompts import get_few_shot_prompt, get_zero_shot_cot_prompt
+    FEW_SHOT_AVAILABLE = True
+except ImportError:
+    FEW_SHOT_AVAILABLE = False
 
 # ============================================================================
 # AGENT SYSTEM PROMPTS
@@ -26,15 +33,16 @@ Guidelines:
 - Avoid unnecessary preamble
 - Use professional medical communication""",
 
-    "medical_expert": """You are a {role} with expertise in {expertise}.
+    "medical_expert": """You are a {role} with expertise in {expertise}. Your job is to collaborate with other medical experts in a team.
 
 Core Principles:
 - Base reasoning on established medical knowledge
 - Be precise with medical terminology
 - Acknowledge uncertainty appropriately
 - Consider patient safety and best practices
-- Collaborate constructively
-- Explain reasoning clearly and concisely""",
+- Collaborate constructively with other specialists
+- Actively engage with peer opinions and reasoning
+- Explain reasoning clearly and concisely to convince other experts""",
 }
 
 # ============================================================================
@@ -43,34 +51,47 @@ Core Principles:
 
 RECRUITMENT_PROMPTS = {
     # Determines how many agents (2-4) are needed
-    "complexity_analysis": """Analyze this medical question and determine optimal agent count (2-4).
+    "complexity_analysis": """You are a medical expert who conducts initial assessment. Analyze this medical question and determine the difficulty/complexity and optimal agent count (2-4).
 
 Question: {question}
 Options: {options}
 
+Complexity levels:
+1. LOW: A PCP or general physician can answer this simple medical knowledge question without consulting specialists (→ 2 agents)
+2. MODERATE: A PCP or general physician needs consultation with specialists in a team (→ 3 agents)
+3. HIGH: Multi-departmental specialists required with significant team effort and cross-consultation (→ 4 agents)
+
 Consider:
-1. Complexity (simple→2, moderate→3, highly complex→4)
-2. Distinct medical domains involved
-3. Need for diverse perspectives
+- Complexity of medical reasoning required
+- Distinct medical domains involved
+- Need for diverse specialist perspectives
 
 Respond with ONLY a number: 2, 3, or 4
 
 Number of agents:""",
 
     # Creates specialized roles
-    "role_assignment": """Create {n_agents} specialized medical expert roles for this question.
+    "role_assignment": """You are an experienced medical expert who recruits a group of experts with diverse identities for this medical query.
 
 Question: {question}
 Options: {options}
+
+Create {n_agents} specialized medical expert roles with complementary expertise.
+
+Also specify the communication structure between experts using:
+- "==" for equal collaboration (e.g., A == B)
+- ">" for hierarchical consultation (e.g., A > B means A leads, B consults)
 
 Format EXACTLY as:
 AGENT_1: [Role] - [One-line expertise]
 AGENT_2: [Role] - [One-line expertise]
 (Include only {n_agents} agents)
+COMMUNICATION: [Structure, e.g., "Agent_1 == Agent_2 > Agent_3" or "Independent"]
 
 Example:
 AGENT_1: Cardiologist - Expert in cardiovascular disease and ECG interpretation
 AGENT_2: Emergency Physician - Specialist in acute care and rapid decision-making
+COMMUNICATION: Agent_1 == Agent_2
 
 Create {n_agents} roles:""",
 
@@ -147,7 +168,7 @@ Your analysis:""",
 # ============================================================================
 
 ROUND2_PROMPTS = {
-    "collaborative_discussion": """You are a {role} with expertise in {expertise}.
+    "collaborative_discussion": """You are a {role} with expertise in {expertise}. You are collaborating with other medical experts in a team.
 
 Question: {question}
 Options: {options}
@@ -157,11 +178,11 @@ Options: {options}
 **Teammates' R1 views**:
 {other_agents_summaries}
 
-**Round 2**: Provide your ranked prediction after reviewing the team's perspectives.
+**Round 2 - Collaborative Discussion**: After reviewing opinions from other medical agents in your team, provide your ranked prediction. Indicate whether you agree/disagree with other experts and deliver your opinion in a way to convince them with clear reasoning.
 
 FORMAT (REQUIRED):
 RANKING: [List all options in order of likelihood, e.g., A, B, C, D]
-JUSTIFICATION: [In 2-3 sentences, state if you agree/disagree with consensus, have new insights, or maintain your position. Explain why.]
+JUSTIFICATION: [In 2-3 sentences, state if you agree/disagree with consensus, have new insights, or maintain your position. Explain why with evidence to convince other experts.]
 
 Your response:""",
 
@@ -178,19 +199,20 @@ Your response:""",
 # ============================================================================
 
 ROUND3_PROMPTS = {
-    "final_ranking_mcq": """You are a {role}.
+    "final_ranking_mcq": """You are a {role} and final medical decision maker who reviews all opinions from different medical experts.
 
 Question: {question}
 Options: {options}
 
 **Team consensus**: {team_consensus}
 
-**Round 3 - Final Ranking**: Provide your FINAL independent ranking of ALL options.
+**Round 3 - Final Decision**: Review all team opinions and make your FINAL independent ranking of ALL options. You have the authority to make the final decision based on your medical expertise and the team's collective reasoning.
 
 **CRITICAL REMINDERS**:
 - Consider classic disease presentations FIRST (e.g., African-American child + hand pain = sickle cell)
 - Match clinical features to well-known syndromes
 - Rank based on clinical likelihood, not abstract genetic reasoning alone
+- Synthesize the best insights from team discussion
 
 Format EXACTLY as:
 RANKING:
@@ -561,9 +583,37 @@ def format_agent_analyses(analyses: dict, exclude_agent_id: str = None) -> str:
     return "\n".join(formatted)
 
 def get_round1_prompt(task_type: str, role: str, expertise: str, question: str, options: list = None,
-                     has_image: bool = False, image_mentioned_but_missing: bool = False, dataset: str = None) -> str:
-    """Get Round 1 prompt based on task type with image handling."""
+                     has_image: bool = False, image_mentioned_but_missing: bool = False, dataset: str = None,
+                     use_few_shot: bool = True, n_few_shot_examples: int = 2) -> str:
+    """
+    Get Round 1 prompt based on task type with image handling and optional few-shot examples.
+
+    Args:
+        task_type: Type of task (mcq, yes_no_maybe, etc.)
+        role: Agent's role
+        expertise: Agent's expertise
+        question: The question text
+        options: Answer options
+        has_image: Whether image is provided
+        image_mentioned_but_missing: Whether image is mentioned but missing
+        dataset: Dataset name (for few-shot selection)
+        use_few_shot: Whether to include few-shot CoT examples
+        n_few_shot_examples: Number of few-shot examples to include
+
+    Returns:
+        Formatted prompt string
+    """
     options_str = format_options(options) if options else ""
+
+    # Build few-shot prefix if enabled
+    few_shot_prefix = ""
+    if use_few_shot and FEW_SHOT_AVAILABLE and dataset:
+        few_shot_text = get_few_shot_prompt(dataset, n_examples=n_few_shot_examples)
+        if few_shot_text:
+            few_shot_prefix = few_shot_text + "\n\n"
+    elif use_few_shot and FEW_SHOT_AVAILABLE and not dataset:
+        # Use zero-shot CoT if dataset not specified
+        few_shot_prefix = get_zero_shot_cot_prompt() + "\n\n"
 
     # Add image constraint ONLY for datasets that actually have images (path-vqa, pmc-vqa)
     # For text-only datasets (medqa, medmcqa, pubmedqa), don't add constraint
@@ -585,17 +635,20 @@ Base your analysis ONLY on the textual information provided. If the question can
         base_prompt = ROUND1_PROMPTS["independent_analysis_mcq"].format(
             role=role, expertise=expertise, question=question, options=options_str
         )
-        return image_constraint + base_prompt if image_constraint else base_prompt
+        full_prompt = few_shot_prefix + image_constraint + base_prompt if image_constraint else few_shot_prefix + base_prompt
+        return full_prompt
     elif task_type == "yes_no_maybe":
         base_prompt = ROUND1_PROMPTS["independent_analysis_yes_no_maybe"].format(
             role=role, expertise=expertise, question=question
         )
-        return image_constraint + base_prompt if image_constraint else base_prompt
+        full_prompt = few_shot_prefix + image_constraint + base_prompt if image_constraint else few_shot_prefix + base_prompt
+        return full_prompt
     else:
         base_prompt = ROUND1_PROMPTS["independent_analysis_open"].format(
             role=role, expertise=expertise, question=question
         )
-        return image_constraint + base_prompt if image_constraint else base_prompt
+        full_prompt = few_shot_prefix + image_constraint + base_prompt if image_constraint else few_shot_prefix + base_prompt
+        return full_prompt
 
 def get_round2_prompt(role: str, expertise: str, question: str, options: list,
                      your_round1: str, other_analyses: dict) -> str:

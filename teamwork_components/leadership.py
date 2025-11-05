@@ -175,6 +175,12 @@ Agent analyses:
 {chr(10).join(agent_summaries)}
 {smm_context}
 
+Complete the following steps:
+1. Take careful and comprehensive consideration of the provided reports
+2. Extract key medical knowledge from the reports
+3. Derive a comprehensive and summarized analysis based on the extracted knowledge
+4. Generate a refined and synthesized report based on your analysis
+
 Create a structured report with:
 1. CONSENSUS FINDINGS: Points all agents agree on
 2. DIVERGENT VIEWS: Where agents disagree and why

@@ -67,19 +67,20 @@ class SLMAgent:
 class SLMMethodRunner:
     """Updated SLM Method Runner with modular chat support."""
     
-    def __init__(self, model_name: str = None, chat_instance_type: str = None, output_base_dir: str = None):
+    def __init__(self, model_name: str = None, chat_instance_type: str = None, output_base_dir: str = None, key_number: int = 1):
         """Initialize SLM method runner with specified chat instance type."""
         if chat_instance_type is None:
             chat_instance_type = DEFAULT_CHAT_INSTANCE
-        
+
         self.chat_instance_type = chat_instance_type
         self.model_config = get_model_config(model_name, chat_instance_type)
+        self.model_config['key_number'] = key_number  # Store key number for multi-key support
         self.agent = SLMAgent(self.model_config, chat_instance_type)
         self.output_base_dir = output_base_dir or OUTPUT_BASE_DIR
         self.results_logger = ResultsLogger(self.output_base_dir)
         self.setup_logging()
-        
-        logging.info(f"Initialized SLM runner with {self.model_config['display_name']} using {chat_instance_type}")
+
+        logging.info(f"Initialized SLM runner with {self.model_config['display_name']} using {chat_instance_type} (API key #{key_number})")
     
     def setup_logging(self):
         """Setup comprehensive logging."""
@@ -651,7 +652,9 @@ def main():
                        help="Random seed for reproducibility")
     parser.add_argument("--output_dir", type=str,
                        help="Custom output directory")
-    
+    parser.add_argument("--key", type=int, default=1,
+                       help="API key number (1=GOOGLE_API_KEY, 2=GOOGLE_API_KEY2, 3=GOOGLE_API_KEY3, etc.)")
+
     args = parser.parse_args()
     
     # Validate argument combinations
@@ -669,11 +672,12 @@ def main():
             print(f"Configuration validation failed for {args.chat_instance}")
             sys.exit(1)
         
-        # Initialize runner
+        # Initialize runner with key number for parallel execution
         runner = SLMMethodRunner(
-            model_name=args.model, 
+            model_name=args.model,
             chat_instance_type=args.chat_instance,
-            output_base_dir=args.output_dir
+            output_base_dir=args.output_dir,
+            key_number=args.key
         )
         
         if args.all:

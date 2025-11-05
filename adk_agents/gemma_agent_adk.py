@@ -145,7 +145,7 @@ class GemmaAgentFactory:
     @staticmethod
     def _build_instruction(role: str, expertise: str, has_image: bool = False) -> str:
         """Build system instruction for medical reasoning agent."""
-        base_instruction = f"""You are a {role} with expertise in {expertise}.
+        base_instruction = f"""You are a {role} with expertise in {expertise}. Your job is to collaborate with other medical experts in a team.
 
 Guidelines:
 - Provide evidence-based medical reasoning
@@ -153,6 +153,8 @@ Guidelines:
 - Acknowledge uncertainty when appropriate
 - Consider patient safety and best practices
 - Collaborate constructively with other specialists
+- Actively engage with peer opinions and reasoning
+- Deliver your opinions in a way to convince other experts with clear reasoning
 - Focus on clinical accuracy
 
 When analyzing medical questions:
