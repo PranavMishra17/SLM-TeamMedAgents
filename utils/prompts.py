@@ -100,23 +100,22 @@ Format your answer exactly as above. No additional explanation.""",
 ROUND1_PROMPTS = {
     "independent_analysis_mcq": """You are a {role} with expertise in {expertise}.
 
-Analyze the following medical question using your specialized knowledge.
+Analyze the following medical question and provide your initial prediction.
 
 Question: {question}
 
 Options:
 {options}
 
-Instructions:
-1. **FIRST**: Identify if this matches a classic clinical presentation (e.g., sickle cell crisis, immunodeficiency syndromes, etc.)
-2. **Pattern Recognition**: Consider key clinical features (age, ethnicity, symptoms, family history, lab findings)
-3. **Systematic Analysis**: Evaluate each option against the clinical picture
-4. **Evidence-Based Reasoning**: Apply established medical knowledge
-5. **Preliminary Answer**: State your answer as a single letter followed by brief reasoning
+**ALGO R2 - Initial Prediction Phase**
 
-Focus on recognizing well-known disease patterns before abstract reasoning.
+Provide your response in the following FORMAT (REQUIRED):
 
-Your analysis:""",
+RANKING: [List ALL options in order of likelihood, e.g., D, A, B, C]
+JUSTIFICATION: [In 2-3 sentences, explain your reasoning. Focus on: (1) Classic clinical presentation recognition, (2) Key clinical features (age, ethnicity, symptoms, family history), (3) Evidence-based reasoning]
+FACTS: [List 2-5 key medical facts that support your reasoning, e.g., "Sickle cell disease is most common in African Americans", "Hand pain suggests vaso-occlusive crisis"]
+
+Your response:""",
 
     "independent_analysis_yes_no_maybe": """You are a {role} with expertise in {expertise}.
 
@@ -158,7 +157,11 @@ Options: {options}
 **Teammates' R1 views**:
 {other_agents_summaries}
 
-**Round 2**: Review team perspectives. In 2-3 sentences, state if you: agree/disagree with consensus, have new insights, or maintain your position. Explain why.
+**Round 2**: Provide your ranked prediction after reviewing the team's perspectives.
+
+FORMAT (REQUIRED):
+RANKING: [List all options in order of likelihood, e.g., A, B, C, D]
+JUSTIFICATION: [In 2-3 sentences, state if you agree/disagree with consensus, have new insights, or maintain your position. Explain why.]
 
 Your response:""",
 

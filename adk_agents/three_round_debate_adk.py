@@ -211,6 +211,7 @@ async def execute_multimodal_gemma(
     if not VISION_SUPPORT:
         raise RuntimeError("Vision support not available - install google-genai")
 
+    client = None
     try:
         logging.debug(f"[MULTIMODAL DIRECT] Calling Gemma model: {model_config.get('model_name')}")
         logging.debug(f"[MULTIMODAL DIRECT] Text prompt length: {len(text_prompt)} chars")
@@ -265,6 +266,15 @@ async def execute_multimodal_gemma(
         logging.error(f"[MULTIMODAL DIRECT] Model: {model_config.get('model_name')}")
         logging.error(f"[MULTIMODAL DIRECT] Image MIME: {image_mime_type}")
         raise
+
+    finally:
+        # Clean up client resources to avoid unclosed session warnings
+        if client:
+            try:
+                await client.aio.close()
+            except Exception as cleanup_error:
+                logging.debug(f"[MULTIMODAL DIRECT] Client cleanup note: {cleanup_error}")
+                pass  # Ignore cleanup errors
 
 
 async def retry_with_exponential_backoff(async_gen_func, max_retries=5):
@@ -340,9 +350,10 @@ class ThreeRoundDebateAgent(BaseAgent):
     description: str = "Orchestrates 3-round collaborative medical reasoning"
     model_config = {'extra': 'allow'}  # Allow custom attributes
 
-    def __init__(self, **kwargs):
+    def __init__(self, teamwork_config=None, **kwargs):
         super().__init__(**kwargs)
-        logging.info("Initialized ThreeRoundDebateAgent")
+        self.teamwork_config = teamwork_config
+        logging.info(f"Initialized ThreeRoundDebateAgent (teamwork: {teamwork_config.get_active_components() if teamwork_config else 'None'})")
 
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         """
@@ -354,6 +365,10 @@ class ThreeRoundDebateAgent(BaseAgent):
         - options: List of options
         - task_type: Type of task (mcq, yes_no_maybe, etc.)
         """
+        # Initialize API call counter
+        if 'api_call_count' not in ctx.session.state:
+            ctx.session.state['api_call_count'] = 0
+
         # Get inputs from session state
         recruited_agents = ctx.session.state.get('recruited_agents', [])
         question = ctx.session.state.get('question', '')
@@ -406,12 +421,20 @@ class ThreeRoundDebateAgent(BaseAgent):
                 logging.warning("Failed to prepare image for multimodal processing")
                 has_valid_image = False
 
-        # Execute 3 rounds (multimodal agents can access image via session state)
+        # Execute 3 rounds with modular teamwork integration
+        # Round 1 & 2: Initial predictions
         await self._execute_round1(ctx, recruited_agents, question, options, task_type,
                                    has_valid_image, question_mentions_image, dataset)
 
         await self._execute_round2(ctx, recruited_agents, question, options, task_type)
 
+        # ========== PHASE 2: POST-R2 PROCESSING ==========
+        # [SMM] Extract verified facts
+        # [TeamO] Create formal medical report
+        # [Trust] Evaluate R2 quality
+        await self._post_r2_processing(ctx, recruited_agents)
+
+        # ========== PHASE 3: COLLABORATIVE DISCUSSION (R3) ==========
         await self._execute_round3(ctx, recruited_agents, question, options, task_type,
                                    is_except_question, has_valid_image, question_mentions_image, dataset)
 
@@ -423,6 +446,100 @@ class ThreeRoundDebateAgent(BaseAgent):
             author=self.name,
             content=types.Content(parts=[types.Part(text="Three-round debate complete")])
         )
+
+    async def _post_r2_processing(
+        self,
+        ctx: InvocationContext,
+        recruited_agents: List[Dict]
+    ) -> None:
+        """
+        Post-R2 Processing: Extract facts, create reports, evaluate trust.
+
+        Combined API call handling:
+        - [SMM] Extract verified facts from R2 responses
+        - [TeamO] Leader creates formal medical report
+        - [Trust] Evaluate R2 response quality
+
+        Args:
+            ctx: Invocation context
+            recruited_agents: List of recruited agent dicts
+        """
+        if not self.teamwork_config:
+            logging.debug("[Post-R2] No teamwork config, skipping")
+            return
+
+        logging.info("\n=== POST-R2 PROCESSING ===")
+
+        round2_results = ctx.session.state.get('round2_results', {})
+        if not round2_results:
+            logging.warning("[Post-R2] No R2 results to process")
+            return
+
+        # Get teamwork components
+        smm = ctx.session.state.get('smm', None)
+        leadership_coord = ctx.session.state.get('leadership_coordinator', None)
+        team_o_manager = ctx.session.state.get('team_orientation_manager', None)
+        trust_network = ctx.session.state.get('trust_network', None)
+
+        # Convert R2 results to response format for processing
+        # (Parse facts from responses - simplified extraction)
+        agent_responses = {}
+        for agent_id, response_text in round2_results.items():
+            # Extract facts from response text (simple regex)
+            import re
+            facts = []
+            # Look for "FACTS:" section or numbered lists
+            facts_section = re.search(r'FACTS?:\s*\n((?:.+\n?)+)', response_text, re.IGNORECASE)
+            if facts_section:
+                fact_lines = facts_section.group(1).strip().split('\n')
+                for line in fact_lines:
+                    if line.strip():
+                        facts.append(line.strip())
+
+            agent_responses[agent_id] = {
+                'justification': response_text[:200],  # First 200 chars
+                'facts': facts[:5],  # Up to 5 facts
+                'answer': None  # Not extracted in R2
+            }
+
+        # [SMM] Extract verified facts
+        if self.teamwork_config.smm and smm:
+            logging.info("[SMM] Extracting verified facts from R2 responses...")
+
+            if self.teamwork_config.leadership and leadership_coord:
+                # Leader extracts facts
+                verified_facts = await leadership_coord.extract_verified_facts_from_responses(
+                    ctx, agent_responses, smm
+                )
+            else:
+                # Automated extraction
+                from teamwork_components import extract_facts_intersection
+                verified_facts = extract_facts_intersection(agent_responses)
+
+            if verified_facts:
+                smm.add_verified_facts(verified_facts)
+                logging.info(f"[SMM] Added {len(verified_facts)} verified facts")
+
+        # [TeamO] Create formal medical report
+        if self.teamwork_config.team_orientation and self.teamwork_config.leadership:
+            if leadership_coord and team_o_manager:
+                logging.info("[TeamO] Creating formal medical report...")
+                formal_report = await leadership_coord.create_formal_medical_report(
+                    ctx, agent_responses, smm
+                )
+                ctx.session.state['formal_medical_report'] = formal_report
+                logging.info(f"[TeamO] Formal report created ({len(formal_report)} chars)")
+
+        # [Trust] Evaluate R2 quality
+        if self.teamwork_config.trust and trust_network:
+            logging.info("[Trust] Evaluating R2 response quality...")
+            ground_truth = ctx.session.state.get('ground_truth', None)
+            trust_network.update_after_round2(agent_responses, ground_truth)
+
+            trust_scores = trust_network.get_all_trust_scores()
+            logging.info(f"[Trust] Updated scores: {trust_scores}")
+
+        logging.info("=== POST-R2 PROCESSING COMPLETE ===")
 
     async def _execute_agent_with_image(
         self,
@@ -449,6 +566,10 @@ class ThreeRoundDebateAgent(BaseAgent):
         Returns:
             Agent's response text
         """
+        # Increment API call counter
+        ctx.session.state['api_call_count'] = ctx.session.state.get('api_call_count', 0) + 1
+        logging.debug(f"API Call #{ctx.session.state['api_call_count']}: {agent.name}")
+
         response_text = ""
 
         # Check if this is a multimodal call and agent has config for direct API access
@@ -544,13 +665,16 @@ class ThreeRoundDebateAgent(BaseAgent):
         image_mime_type = ctx.session.state.get('image_mime_type')
 
         if has_valid_image and image_base64:
-            logging.info(f"\n=== ROUND 1: INDEPENDENT ANALYSIS (WITH MULTIMODAL IMAGE) ===")
+            logging.info(f"\n=== ROUND 1: INDEPENDENT ANALYSIS (WITH MULTIMODAL IMAGE - PARALLEL) ===")
         else:
-            logging.info("\n=== ROUND 1: INDEPENDENT ANALYSIS ===")
+            logging.info("\n=== ROUND 1: INDEPENDENT ANALYSIS (PARALLEL) ===")
 
-        round1_results = {}
+        # Prepare tasks for parallel execution
+        tasks = []
+        agent_ids = []
 
-        # Prepare each agent with Round 1 instruction
+        logging.info(f"Building tasks for {len(recruited_agents)} agents...")
+
         for agent_data in recruited_agents:
             agent = agent_data['agent']
             agent_id = agent_data['agent_id']
@@ -578,16 +702,32 @@ class ThreeRoundDebateAgent(BaseAgent):
 
             # Log multimodal usage
             if has_valid_image and image_base64:
-                logging.debug(f"[{agent_id}] Processing with multimodal image ({len(image_base64)} chars)")
+                logging.info(f"[{agent_id}] Creating R1 task with multimodal image ({len(image_base64)} chars)")
 
-            # Execute agent with multimodal support
-            response_text = await self._execute_agent_with_image(
+            # Create task for parallel execution
+            task = self._execute_agent_with_image(
                 ctx, agent, prompt, image_base64, image_mime_type
             )
+            tasks.append(task)
+            agent_ids.append(agent_id)
 
-            round1_results[agent_id] = response_text
+        logging.info(f"All {len(tasks)} tasks built, ready to execute in parallel")
 
-            logging.debug(f"  [{agent_id}] {response_text[:100]}...")
+        # Execute all agents in parallel with error handling
+        logging.info(f"Executing {len(tasks)} agents in parallel...")
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results
+        round1_results = {}
+        for agent_id, result in zip(agent_ids, results):
+            if isinstance(result, Exception):
+                logging.error(f"[{agent_id}] Failed with error: {type(result).__name__}: {result}")
+                round1_results[agent_id] = f"ERROR: Agent execution failed - {str(result)}"
+            else:
+                round1_results[agent_id] = result
+                logging.debug(f"  [{agent_id}] {result[:100]}...")
+
+        logging.info(f"Round 1 parallel execution complete: {len(round1_results)} agents")
 
         # Store R1 results in session state
         ctx.session.state['round1_results'] = round1_results
@@ -600,25 +740,39 @@ class ThreeRoundDebateAgent(BaseAgent):
         options: List[str],
         task_type: str
     ) -> None:
-        """Execute Round 2: Collaborative Discussion (Sequential)."""
+        """Execute Round 2: Collaborative Discussion (Parallel)."""
         # Get image data from session state
         image_base64 = ctx.session.state.get('image_base64')
         image_mime_type = ctx.session.state.get('image_mime_type')
         has_image = image_base64 is not None
 
         if has_image:
-            logging.info(f"\n=== ROUND 2: COLLABORATIVE DISCUSSION (WITH MULTIMODAL IMAGE) ===")
+            logging.info(f"\n=== ROUND 2: COLLABORATIVE DISCUSSION (WITH MULTIMODAL IMAGE - PARALLEL) ===")
         else:
-            logging.info("\n=== ROUND 2: COLLABORATIVE DISCUSSION ===")
+            logging.info("\n=== ROUND 2: COLLABORATIVE DISCUSSION (PARALLEL) ===")
 
         round1_results = ctx.session.state.get('round1_results', {})
-        round2_results = {}
+
+        # Get SMM for context injection
+        smm = ctx.session.state.get('smm', None)
+        smm_context = ""
+        if self.teamwork_config and self.teamwork_config.smm and smm and smm.has_content():
+            smm_context = "\n\n" + smm.get_context_string() + "\n"
+            logging.debug("[SMM] Injecting SMM context into R2 prompts")
+
+        # Prepare tasks for parallel execution
+        tasks = []
+        agent_ids = []
+
+        logging.info(f"Building tasks for {len(recruited_agents)} agents...")
 
         for agent_data in recruited_agents:
             agent = agent_data['agent']
             agent_id = agent_data['agent_id']
             role = agent_data['role']
             expertise = agent_data['expertise']
+
+            logging.debug(f"[{agent_id}] Building R2 task...")
 
             # Get this agent's R1
             your_round1 = round1_results.get(agent_id, '')
@@ -627,6 +781,7 @@ class ThreeRoundDebateAgent(BaseAgent):
             other_analyses = {k: v for k, v in round1_results.items() if k != agent_id}
 
             # Build Round 2 prompt
+            logging.debug(f"[{agent_id}] Building prompt...")
             if PROMPTS_AVAILABLE:
                 prompt = get_round2_prompt(
                     role=role,
@@ -640,20 +795,42 @@ class ThreeRoundDebateAgent(BaseAgent):
                 prompt = self._fallback_round2_prompt(role, expertise, question, options,
                                                       your_round1, other_analyses)
 
+            # [SMM] Inject SMM context
+            if smm_context:
+                prompt = smm_context + prompt
+
             agent.instruction = prompt
 
             # Log multimodal usage
             if has_image:
-                logging.debug(f"[{agent_id}] Round 2 with multimodal image")
+                logging.info(f"[{agent_id}] Creating R2 task with multimodal image ({len(image_base64)} chars)")
 
-            # Execute agent with multimodal support
-            response_text = await self._execute_agent_with_image(
+            # Create task for parallel execution
+            logging.debug(f"[{agent_id}] Creating coroutine...")
+            task = self._execute_agent_with_image(
                 ctx, agent, prompt, image_base64, image_mime_type
             )
+            tasks.append(task)
+            agent_ids.append(agent_id)
+            logging.debug(f"[{agent_id}] Task created successfully")
 
-            round2_results[agent_id] = response_text
+        logging.info(f"All {len(tasks)} tasks built, ready to execute in parallel")
 
-            logging.debug(f"  [{agent_id}] {response_text[:100]}...")
+        # Execute all agents in parallel with error handling
+        logging.info(f"Executing {len(tasks)} agents in parallel...")
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results
+        round2_results = {}
+        for agent_id, result in zip(agent_ids, results):
+            if isinstance(result, Exception):
+                logging.error(f"[{agent_id}] Failed with error: {type(result).__name__}: {result}")
+                round2_results[agent_id] = f"ERROR: Agent execution failed - {str(result)}"
+            else:
+                round2_results[agent_id] = result
+                logging.debug(f"  [{agent_id}] {result[:100]}...")
+
+        logging.info(f"Round 2 parallel execution complete: {len(round2_results)} agents")
 
         # Store R2 results
         ctx.session.state['round2_results'] = round2_results
@@ -670,66 +847,118 @@ class ThreeRoundDebateAgent(BaseAgent):
         image_mentioned_but_missing: bool,
         dataset: str
     ) -> None:
-        """Execute Round 3: Final Ranking (Sequential)."""
+        """
+        Execute Round 3: Multi-turn Collaborative Discussion with Final Ranking.
+
+        Phase 3 Integration:
+        - Multiple turns (n_turns from config, default 2)
+        - [SMM] Inject SMM context in all prompts
+        - [Trust] Inject trust hints in prompts
+        - [TeamO] Inject formal medical report
+        - [Leadership] Mediation after each turn
+        - [MM] Mutual Monitoring between turns (not after final)
+        - Final turn: Extract rankings
+        """
         # Get image data from session state
         image_base64 = ctx.session.state.get('image_base64')
         image_mime_type = ctx.session.state.get('image_mime_type')
         has_image = image_base64 is not None
 
+        # Get teamwork components
+        n_turns = self.teamwork_config.n_turns if self.teamwork_config else 2
+        smm = ctx.session.state.get('smm', None)
+        trust_network = ctx.session.state.get('trust_network', None)
+        leadership_coord = ctx.session.state.get('leadership_coordinator', None)
+        mm_coordinator = ctx.session.state.get('mm_coordinator', None)
+        formal_report = ctx.session.state.get('formal_medical_report', '')
+
         if has_valid_image and has_image:
-            logging.info(f"\n=== ROUND 3: FINAL RANKING (WITH MULTIMODAL IMAGE) ===")
+            logging.info(f"\n=== ROUND 3: COLLABORATIVE DISCUSSION & RANKING ({n_turns} turns, WITH MULTIMODAL IMAGE) ===")
         else:
-            logging.info("\n=== ROUND 3: FINAL RANKING ===")
+            logging.info(f"\n=== ROUND 3: COLLABORATIVE DISCUSSION & RANKING ({n_turns} turns) ===")
 
         round1_results = ctx.session.state.get('round1_results', {})
         round2_results = ctx.session.state.get('round2_results', {})
-        round3_results = {}
 
-        for agent_data in recruited_agents:
-            agent = agent_data['agent']
-            agent_id = agent_data['agent_id']
-            role = agent_data['role']
-            expertise = agent_data['expertise']
+        # Store discourse for each turn
+        turn_discourses = {}  # {turn_num: {agent_id: discourse}}
 
-            # Get this agent's previous rounds
-            your_round1 = round1_results.get(agent_id, '')
+        # ========== MULTI-TURN DISCUSSION ==========
+        for turn_num in range(1, n_turns + 1):
+            is_final_turn = (turn_num == n_turns)
 
-            # Summarize Round 2 consensus (all agents' R2)
-            round2_summary = "\n".join([
-                f"{aid}: {text[:200]}..." if len(text) > 200 else f"{aid}: {text}"
-                for aid, text in round2_results.items()
-            ])
+            logging.info(f"\n--- Turn {turn_num}/{n_turns} {'(FINAL)' if is_final_turn else ''} ---")
 
-            # Build Round 3 prompt
-            if PROMPTS_AVAILABLE:
-                prompt = get_round3_prompt(
-                    task_type=task_type,
-                    role=role,
-                    expertise=expertise,
-                    question=question,
-                    options=options,
-                    your_round1=your_round1,
-                    round2_discussion=round2_summary,
-                    has_image=has_valid_image,
-                    image_mentioned_but_missing=image_mentioned_but_missing,
-                    dataset=dataset
-                )
-            else:
-                prompt = self._fallback_round3_prompt(role, expertise, question, options,
-                                                      round2_summary, is_except_question)
+            turn_discourses[turn_num] = {}
 
-            agent.instruction = prompt
-
-            # Log multimodal usage
-            if has_image:
-                logging.debug(f"[{agent_id}] Round 3 with multimodal image")
-
-            # Execute agent with multimodal support
-            response_text = await self._execute_agent_with_image(
-                ctx, agent, prompt, image_base64, image_mime_type
+            # Build shared context for this turn
+            shared_context = self._build_r3_shared_context(
+                ctx, round1_results, round2_results, turn_discourses,
+                smm, trust_network, formal_report, turn_num
             )
 
-            # Extract ranking from response
+            # Round-robin discourse
+            for agent_data in recruited_agents:
+                agent = agent_data['agent']
+                agent_id = agent_data['agent_id']
+                role = agent_data['role']
+                expertise = agent_data['expertise']
+
+                # Build agent-specific prompt
+                if is_final_turn:
+                    # Final turn: Request ranking
+                    prompt = self._build_r3_final_prompt(
+                        role, expertise, question, options, task_type,
+                        shared_context, is_except_question,
+                        has_valid_image, image_mentioned_but_missing, dataset
+                    )
+                else:
+                    # Intermediate turn: Discussion
+                    prompt = self._build_r3_discussion_prompt(
+                        role, expertise, question, options,
+                        shared_context, turn_num
+                    )
+
+                agent.instruction = prompt
+
+                # Execute agent
+                response_text = await self._execute_agent_with_image(
+                    ctx, agent, prompt, image_base64, image_mime_type
+                )
+
+                turn_discourses[turn_num][agent_id] = response_text
+                logging.debug(f"  [{agent_id}] Turn {turn_num}: {response_text[:80]}...")
+
+            # [Leadership] Mediation after this turn
+            if self.teamwork_config and self.teamwork_config.leadership and leadership_coord:
+                logging.info(f"[Leadership] Mediating Turn {turn_num}...")
+                mediation = await leadership_coord.mediate_discussion(
+                    ctx, turn_num, turn_discourses[turn_num], smm
+                )
+                ctx.session.state[f'turn{turn_num}_mediation'] = mediation
+                logging.info(f"[Leadership] Mediation: {mediation[:100]}...")
+
+            # [MM] Mutual Monitoring BETWEEN turns (not after final)
+            if not is_final_turn:
+                if self.teamwork_config and self.teamwork_config.mutual_monitoring and mm_coordinator:
+                    logging.info(f"[MM] Executing Mutual Monitoring after Turn {turn_num}...")
+                    mm_result = await mm_coordinator.execute_monitoring(
+                        ctx, turn_num, turn_discourses[turn_num],
+                        recruited_agents, trust_network, smm
+                    )
+
+                    if mm_result:
+                        logging.info(f"[MM] Challenged {mm_result.challenged_agent_id}, quality: {mm_result.response_quality}")
+                        # Trust and SMM already updated by MM coordinator
+
+        # ========== EXTRACT FINAL RANKINGS ==========
+        logging.info("\n--- Extracting Final Rankings ---")
+
+        round3_results = {}
+        final_turn_responses = turn_discourses.get(n_turns, {})
+
+        for agent_id, response_text in final_turn_responses.items():
+            # Extract ranking from final turn response
             ranking = self._extract_ranking(response_text, task_type)
             confidence = self._extract_confidence(response_text)
 
@@ -740,10 +969,153 @@ class ThreeRoundDebateAgent(BaseAgent):
                 'answer': ranking[0] if ranking and len(ranking) > 0 else None
             }
 
-            logging.info(f"  [{agent_id}] Ranking: {ranking}, Confidence: {confidence}")
+            logging.info(f"  [{agent_id}] Final Ranking: {ranking}, Confidence: {confidence}")
 
         # Store R3 results
         ctx.session.state['round3_results'] = round3_results
+        ctx.session.state['turn_discourses'] = turn_discourses  # Store all turn data
+
+    def _build_r3_shared_context(
+        self,
+        ctx: InvocationContext,
+        round1_results: Dict,
+        round2_results: Dict,
+        turn_discourses: Dict,
+        smm: Any,
+        trust_network: Any,
+        formal_report: str,
+        current_turn: int
+    ) -> str:
+        """
+        Build shared context for R3 turns with teamwork components.
+
+        Includes:
+        - [SMM] Shared Mental Model
+        - [Trust] Trust hints
+        - [TeamO] Formal medical report
+        - Previous turn discourses
+        - Mediations from previous turns
+        """
+        context_parts = []
+
+        # [SMM] Shared Mental Model
+        if self.teamwork_config and self.teamwork_config.smm and smm and smm.has_content():
+            context_parts.append(smm.get_context_string())
+
+        # [Trust] Trust hints
+        if self.teamwork_config and self.teamwork_config.trust and trust_network:
+            trust_hints = trust_network.get_trust_hints_for_prompt()
+            if trust_hints:
+                context_parts.append(trust_hints)
+
+        # [TeamO] Formal Medical Report
+        if self.teamwork_config and self.teamwork_config.team_orientation and formal_report:
+            context_parts.append(f"\n=== FORMAL MEDICAL REPORT ===\n{formal_report}\n")
+
+        # R2 Summary
+        r2_summary = "\n".join([
+            f"[{aid}] {text[:150]}..." if len(text) > 150 else f"[{aid}] {text}"
+            for aid, text in round2_results.items()
+        ])
+        context_parts.append(f"\n=== ROUND 2 ANALYSIS ===\n{r2_summary}\n")
+
+        # Previous R3 turns
+        for turn_num in range(1, current_turn):
+            if turn_num in turn_discourses:
+                turn_summary = "\n".join([
+                    f"[{aid}] {disc[:100]}..." if len(disc) > 100 else f"[{aid}] {disc}"
+                    for aid, disc in turn_discourses[turn_num].items()
+                ])
+                context_parts.append(f"\n=== TURN {turn_num} DISCUSSION ===\n{turn_summary}\n")
+
+                # Add mediation if present
+                mediation = ctx.session.state.get(f'turn{turn_num}_mediation', '')
+                if mediation:
+                    context_parts.append(f"[Leader Mediation] {mediation}\n")
+
+        return "\n".join(context_parts)
+
+    def _build_r3_discussion_prompt(
+        self,
+        role: str,
+        expertise: str,
+        question: str,
+        options: List[str],
+        shared_context: str,
+        turn_num: int
+    ) -> str:
+        """Build prompt for intermediate R3 discussion turns."""
+        return f"""You are a {role} with expertise in {expertise}.
+
+{shared_context}
+
+Question: {question}
+
+Options: {', '.join(options) if options else 'N/A'}
+
+This is Turn {turn_num} of the collaborative discussion. Review the shared context above and provide your perspective:
+- Agree or disagree with consensus points
+- Raise new insights or concerns
+- Challenge reasoning that seems flawed
+- Be concise (2-3 sentences)
+
+Your Turn {turn_num} response:"""
+
+    def _build_r3_final_prompt(
+        self,
+        role: str,
+        expertise: str,
+        question: str,
+        options: List[str],
+        task_type: str,
+        shared_context: str,
+        is_except_question: bool,
+        has_valid_image: bool,
+        image_mentioned_but_missing: bool,
+        dataset: str
+    ) -> str:
+        """Build prompt for final R3 turn requesting ranking."""
+        # Get existing prompt templates if available
+        if PROMPTS_AVAILABLE:
+            base_prompt = get_round3_prompt(
+                task_type=task_type,
+                role=role,
+                expertise=expertise,
+                question=question,
+                options=options,
+                your_round1="",  # Not needed, in shared context
+                round2_discussion="",  # Not needed, in shared context
+                has_image=has_valid_image,
+                image_mentioned_but_missing=image_mentioned_but_missing,
+                dataset=dataset
+            )
+            # Prepend shared context
+            return shared_context + "\n\n" + base_prompt
+        else:
+            # Fallback prompt
+            rank_instruction = "Rank from MOST FALSE (1) to MOST TRUE" if is_except_question else "Rank from MOST LIKELY (1) to LEAST LIKELY"
+
+            return f"""{shared_context}
+
+You are a {role} with expertise in {expertise}.
+
+Question: {question}
+
+Options: {', '.join(options) if options else 'N/A'}
+
+Based on all team discussion above, provide your FINAL RANKING.
+
+{rank_instruction}.
+
+Format:
+RANKING:
+1. [Letter] - [brief reasoning]
+2. [Letter] - [brief reasoning]
+...
+
+CONFIDENCE: High/Medium/Low
+
+RANKING:"""
 
     def _extract_ranking(self, response: str, task_type: str) -> List[str]:
         """Extract ranking from agent response."""

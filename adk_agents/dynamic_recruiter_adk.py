@@ -28,7 +28,7 @@ import json
 import re
 import asyncio
 import random
-from typing import AsyncGenerator, List, Dict
+from typing import AsyncGenerator, List, Dict, Optional
 
 try:
     from google.adk.agents import BaseAgent, Agent
@@ -115,16 +115,20 @@ class DynamicRecruiterAgent(BaseAgent):
     description: str = "Recruits specialized medical agents dynamically based on question"
     model_config = {'extra': 'allow'}  # Allow custom attributes
 
-    def __init__(self, model_name: str = 'gemma3_4b', **kwargs):
+    def __init__(self, model_name: str = 'gemma3_4b', teamwork_config=None, **kwargs):
         """
         Initialize dynamic recruiter.
 
         Args:
             model_name: Gemma model to use for recruitment planning
+            teamwork_config: TeamworkConfig instance for modular teamwork components
             **kwargs: Additional parameters for BaseAgent
         """
         super().__init__(**kwargs)
         self.model_name = model_name
+
+        # Teamwork configuration
+        self.teamwork_config = teamwork_config
 
         # Create planner agent for recruitment decisions
         self.planner = GemmaAgentFactory.create_agent(
@@ -135,7 +139,13 @@ class DynamicRecruiterAgent(BaseAgent):
             temperature=0.5  # Lower temperature for more consistent recruitment
         )
 
-        logging.info(f"Initialized DynamicRecruiterAgent with {model_name}")
+        # Leadership: If enabled, this agent becomes the Leader
+        self.is_leader = teamwork_config and teamwork_config.leadership if teamwork_config else False
+
+        if self.is_leader:
+            logging.info(f"Initialized DynamicRecruiterAgent as LEADER with {model_name}")
+        else:
+            logging.info(f"Initialized DynamicRecruiterAgent with {model_name}")
 
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         """
@@ -143,7 +153,16 @@ class DynamicRecruiterAgent(BaseAgent):
 
         Reads question from session.state, determines optimal agents,
         creates them, and stores in session.state.
+
+        Integrates modular teamwork components:
+        - [SMM] Initialize and add question_analysis
+        - [Leadership] Self-designate as Leader
+        - [TeamO] Assign specialized roles with hierarchical weights
         """
+        # Initialize API call counter
+        if 'api_call_count' not in ctx.session.state:
+            ctx.session.state['api_call_count'] = 0
+
         # Get question from session state
         question = ctx.session.state.get('question', '')
         options = ctx.session.state.get('options', [])
@@ -159,43 +178,105 @@ class DynamicRecruiterAgent(BaseAgent):
         vision_datasets = ['path-vqa', 'pmc-vqa', 'pathvqa', 'pmcvqa', 'slake', 'rad', 'vqa-rad', 'vqarad']
         has_image = image is not None and any(d in dataset.lower() for d in vision_datasets)
 
+        # Log recruitment start
+        leadership_info = " [LEADERSHIP MODE]" if self.is_leader else ""
         if has_image:
-            logging.info(f"=== DYNAMIC AGENT RECRUITMENT (WITH MULTIMODAL IMAGE - Dataset: {dataset}) ===")
+            logging.info(f"=== DYNAMIC AGENT RECRUITMENT{leadership_info} (WITH MULTIMODAL IMAGE - Dataset: {dataset}) ===")
         else:
-            logging.info("=== DYNAMIC AGENT RECRUITMENT ===")
+            logging.info(f"=== DYNAMIC AGENT RECRUITMENT{leadership_info} ===")
+
+        # ========== TEAMWORK PHASE 1: RECRUITMENT ==========
+
+        # [SMM] Initialize Shared Mental Model if enabled
+        smm = ctx.session.state.get('smm', None)
+        if self.teamwork_config and self.teamwork_config.smm and smm:
+            logging.info("[SMM] Analyzing question for tricks and complexity...")
+            question_analysis = await self._analyze_question_for_smm(ctx, question, options)
+            if question_analysis:
+                smm.set_question_analysis(question_analysis)
+                logging.info(f"[SMM] Question analysis: {question_analysis}")
+
+        # [Leadership] Self-designate as Leader
+        if self.is_leader:
+            ctx.session.state['leader_agent'] = self.planner
+            logging.info("[Leadership] Recruiter designated as Team Leader")
 
         # STEP 1: Determine agent count
         logging.info("Analyzing question complexity...")
-
         agent_count = await self._determine_agent_count(ctx, question, options)
-
         logging.info(f"Determined optimal agent count: {agent_count}")
 
         # STEP 2: Generate roles for each agent
-        logging.info("Generating specialist roles...")
+        # [TeamO] Use specialized roles with hierarchical weights if enabled
+        team_o_manager = ctx.session.state.get('team_orientation_manager', None)
 
-        recruited_agents = []
-        for i in range(agent_count):
-            role, expertise = await self._generate_role(ctx, question, options, i + 1, agent_count)
+        if self.teamwork_config and self.teamwork_config.team_orientation and team_o_manager:
+            logging.info("[TeamO] Assigning specialized medical roles with hierarchical weights...")
 
-            # Create ADK Agent (with artifact image support if needed)
-            agent = GemmaAgentFactory.create_agent(
-                name=f"agent_{i+1}",
-                role=role,
-                expertise=expertise,
-                model_name=self.model_name,
-                has_image=has_image
+            # Use Team Orientation for role assignment
+            agent_roles, hierarchical_weights = team_o_manager.assign_roles(
+                question=question,
+                n_agents=agent_count,
+                smm=smm,
+                use_llm=self.is_leader,
+                leader_agent=self.planner if self.is_leader else None,
+                ctx=ctx
             )
 
-            recruited_agents.append({
-                'agent': agent,
-                'agent_id': f"agent_{i+1}",
-                'role': role,
-                'expertise': expertise
-            })
+            # Create agents with specialized roles
+            recruited_agents = []
+            for i, agent_role in enumerate(agent_roles):
+                agent = GemmaAgentFactory.create_agent(
+                    name=f"agent_{i+1}",
+                    role=agent_role.role_name,
+                    expertise=agent_role.expertise,
+                    model_name=self.model_name,
+                    has_image=has_image
+                )
 
-            model_info = " (IMAGE ARTIFACT)" if has_image else ""
-            logging.info(f"  Agent {i+1}: {role} - {expertise}{model_info}")
+                recruited_agents.append({
+                    'agent': agent,
+                    'agent_id': f"agent_{i+1}",
+                    'role': agent_role.role_name,
+                    'expertise': agent_role.expertise,
+                    'weight': agent_role.weight,
+                    'domain': agent_role.domain
+                })
+
+                model_info = " (IMAGE ARTIFACT)" if has_image else ""
+                logging.info(f"  Agent {i+1}: {agent_role.role_name} [weight={agent_role.weight:.2f}] - {agent_role.expertise}{model_info}")
+
+            # Store hierarchical weights
+            ctx.session.state['hierarchical_weights'] = hierarchical_weights
+
+        else:
+            # Base system: Generate generic roles (batched in single API call)
+            logging.info("Generating agent roles (base system - batched)...")
+
+            # Generate all roles in single API call
+            all_roles = await self._generate_all_roles_batch(ctx, question, options, agent_count)
+
+            recruited_agents = []
+            for i, (role, expertise) in enumerate(all_roles):
+                # Create ADK Agent (with artifact image support if needed)
+                agent = GemmaAgentFactory.create_agent(
+                    name=f"agent_{i+1}",
+                    role=role,
+                    expertise=expertise,
+                    model_name=self.model_name,
+                    has_image=has_image
+                )
+
+                recruited_agents.append({
+                    'agent': agent,
+                    'agent_id': f"agent_{i+1}",
+                    'role': role,
+                    'expertise': expertise,
+                    'weight': 1.0  # Equal weights for base system
+                })
+
+                model_info = " (IMAGE ARTIFACT)" if has_image else ""
+                logging.info(f"  Agent {i+1}: {role} - {expertise}{model_info}")
 
         # STEP 3: Store in session state
         ctx.session.state['recruited_agents'] = recruited_agents
@@ -240,6 +321,10 @@ Optimal agent count:"""
         # Update planner instruction temporarily
         original_instruction = self.planner.instruction
         self.planner.instruction = prompt
+
+        # Increment API call counter
+        ctx.session.state['api_call_count'] = ctx.session.state.get('api_call_count', 0) + 1
+        logging.debug(f"API Call #{ctx.session.state['api_call_count']}: Recruiter/Planner")
 
         # Get LLM response with retry logic
         response_text = ""
@@ -295,6 +380,10 @@ Generate Agent #{agent_num}:"""
         original_instruction = self.planner.instruction
         self.planner.instruction = prompt
 
+        # Increment API call counter
+        ctx.session.state['api_call_count'] = ctx.session.state.get('api_call_count', 0) + 1
+        logging.debug(f"API Call #{ctx.session.state['api_call_count']}: Recruiter/Planner (Agent Generation)")
+
         # Get LLM response with retry logic
         response_text = ""
         async for event in retry_with_exponential_backoff(lambda: self.planner.run_async(ctx)):
@@ -326,6 +415,170 @@ Generate Agent #{agent_num}:"""
         logging.warning(f"Using fallback role for Agent {agent_num}: {role}")
         return role, expertise
 
+    async def _generate_all_roles_batch(
+        self,
+        ctx: InvocationContext,
+        question: str,
+        options: List[str],
+        total_agents: int
+    ) -> List[tuple]:
+        """
+        Generate all agent roles in a SINGLE batched API call (optimization).
+
+        This reduces API calls from N to 1, matching the ALGO specification.
+
+        Args:
+            ctx: Invocation context
+            question: Question text
+            options: Answer options
+            total_agents: Number of agents to generate roles for
+
+        Returns:
+            List of (role, expertise) tuples
+        """
+        prompt = f"""Generate {total_agents} specialized medical roles for analyzing this question.
+
+Question: {question}
+
+Options: {', '.join(options) if options else 'Open-ended'}
+
+The {total_agents} agents should have complementary expertise covering different aspects of this question.
+
+Respond in this EXACT format:
+
+AGENT 1:
+ROLE: [Specific medical specialty/role]
+EXPERTISE: [Detailed area of expertise]
+
+AGENT 2:
+ROLE: [Specific medical specialty/role]
+EXPERTISE: [Detailed area of expertise]
+
+{'AGENT 3:\nROLE: [Specific medical specialty/role]\nEXPERTISE: [Detailed area of expertise]\n' if total_agents >= 3 else ''}{'AGENT 4:\nROLE: [Specific medical specialty/role]\nEXPERTISE: [Detailed area of expertise]' if total_agents >= 4 else ''}
+Generate all {total_agents} agents:"""
+
+        # Update planner instruction
+        original_instruction = self.planner.instruction
+        self.planner.instruction = prompt
+
+        # Increment API call counter (SINGLE call for all roles)
+        ctx.session.state['api_call_count'] = ctx.session.state.get('api_call_count', 0) + 1
+        logging.debug(f"API Call #{ctx.session.state['api_call_count']}: Recruiter/Planner (Batch Generate {total_agents} Agents)")
+
+        # Get LLM response with retry logic
+        response_text = ""
+        try:
+            async for event in retry_with_exponential_backoff(lambda: self.planner.run_async(ctx)):
+                if hasattr(event, 'content') and event.content:
+                    response_text += extract_text_from_content(event.content)
+        except Exception as e:
+            logging.error(f"Error in batch role generation: {e}")
+            # Fallback to default roles
+            return self._get_fallback_roles_batch(total_agents)
+        finally:
+            # Restore instruction
+            self.planner.instruction = original_instruction
+
+        # Parse all roles from response
+        roles = []
+
+        # Split by "AGENT N:" markers
+        agent_blocks = re.split(r'AGENT\s+\d+:', response_text, flags=re.IGNORECASE)
+
+        for block in agent_blocks[1:]:  # Skip first empty split
+            # Extract role and expertise from each block
+            role_match = re.search(r'ROLE:\s*(.+?)(?:\n|$)', block, re.IGNORECASE)
+            expertise_match = re.search(r'EXPERTISE:\s*(.+?)(?:\n|$)', block, re.IGNORECASE)
+
+            if role_match and expertise_match:
+                role = role_match.group(1).strip()
+                expertise = expertise_match.group(1).strip()
+                roles.append((role, expertise))
+                logging.debug(f"Parsed Agent {len(roles)}: {role}")
+
+        # Validate we got the right number
+        if len(roles) != total_agents:
+            logging.warning(f"Expected {total_agents} roles, got {len(roles)}. Using fallback for missing roles.")
+            # Fill in missing roles with fallbacks
+            while len(roles) < total_agents:
+                fallback = self._get_fallback_roles_batch(1)[0]
+                roles.append(fallback)
+
+        logging.info(f"Batch generated {len(roles)} agent roles in 1 API call")
+        return roles[:total_agents]  # Ensure exact count
+
+    def _get_fallback_roles_batch(self, count: int) -> List[tuple]:
+        """Get fallback roles for batch generation failures."""
+        fallback_roles = [
+            ("General Internist", "Broad medical knowledge and diagnostic reasoning"),
+            ("Medical Specialist", "Disease pathophysiology and treatment protocols"),
+            ("Clinical Researcher", "Evidence-based medicine and current literature"),
+            ("Diagnostician", "Differential diagnosis and systematic clinical reasoning")
+        ]
+        return [fallback_roles[i % len(fallback_roles)] for i in range(count)]
+
+    async def _analyze_question_for_smm(
+        self,
+        ctx: InvocationContext,
+        question: str,
+        options: List[str]
+    ) -> Optional[str]:
+        """
+        Analyze question for SMM (trick detection, complexity assessment).
+
+        Uses Leader LLM if Leadership enabled, otherwise rule-based.
+
+        Args:
+            ctx: Invocation context
+            question: Question text
+            options: Answer options
+
+        Returns:
+            1-2 sentence analysis for SMM
+        """
+        if self.is_leader:
+            # LLM-powered analysis
+            prompt = f"""As team leader, analyze this medical question for potential tricks or complexity.
+
+Question: {question}
+
+Options: {', '.join(options) if options else 'Open-ended'}
+
+Provide a 1-2 sentence analysis noting:
+- EXCEPT/NOT questions (rank from false to true)
+- Multi-step reasoning requirements
+- Visual analysis needs
+- Key complexity factors
+
+Analysis:"""
+
+            original_instruction = self.planner.instruction
+            self.planner.instruction = prompt
+
+            # Increment API call counter
+            ctx.session.state['api_call_count'] = ctx.session.state.get('api_call_count', 0) + 1
+            logging.debug(f"API Call #{ctx.session.state['api_call_count']}: Recruiter/Planner (SMM Analysis)")
+
+            response_text = ""
+            try:
+                async for event in retry_with_exponential_backoff(lambda: self.planner.run_async(ctx)):
+                    if hasattr(event, 'content') and event.content:
+                        response_text += extract_text_from_content(event.content)
+            except Exception as e:
+                logging.error(f"[SMM] Error analyzing question with LLM: {e}")
+                # Fallback to rule-based
+                from teamwork_components import detect_question_tricks
+                return detect_question_tricks(question, options)
+            finally:
+                self.planner.instruction = original_instruction
+
+            # Return first 200 chars
+            return response_text.strip()[:200] if response_text else None
+        else:
+            # Rule-based analysis
+            from teamwork_components import detect_question_tricks
+            return detect_question_tricks(question, options)
+
 
 class FixedAgentRecruiter(BaseAgent):
     """
@@ -338,11 +591,17 @@ class FixedAgentRecruiter(BaseAgent):
     description: str = "Creates fixed number of medical specialist agents"
     model_config = {'extra': 'allow'}  # Allow custom attributes
 
-    def __init__(self, n_agents: int = 3, model_name: str = 'gemma3_4b', **kwargs):
+    def __init__(self, n_agents: int = 3, model_name: str = 'gemma3_4b', teamwork_config=None, **kwargs):
         super().__init__(**kwargs)
         self.n_agents = n_agents
         self.model_name = model_name
-        logging.info(f"Initialized FixedAgentRecruiter with {n_agents} agents")
+        self.teamwork_config = teamwork_config
+        self.is_leader = teamwork_config and teamwork_config.leadership if teamwork_config else False
+
+        if self.is_leader:
+            logging.info(f"Initialized FixedAgentRecruiter as LEADER with {n_agents} agents")
+        else:
+            logging.info(f"Initialized FixedAgentRecruiter with {n_agents} agents")
 
     async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
         """Create fixed number of agents with predefined roles."""

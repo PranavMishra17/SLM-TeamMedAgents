@@ -29,9 +29,66 @@ import sys
 import argparse
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import Dict, Any, List
 from datetime import datetime
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load .env file from current directory
+except ImportError:
+    # python-dotenv not installed, environment variables must be set manually
+    pass
+
+
+def get_google_api_key(key_number: int = 1) -> str:
+    """
+    Get Google API key based on key number.
+
+    Supports scalable key selection:
+    - key_number=1 → GOOGLE_API_KEY
+    - key_number=2 → GOOGLE_API_KEY2
+    - key_number=3 → GOOGLE_API_KEY3
+    - etc.
+
+    Args:
+        key_number: Key number to use (1, 2, 3, ...)
+
+    Returns:
+        API key string
+
+    Raises:
+        RuntimeError: If key not found
+    """
+    if key_number == 1:
+        env_var = 'GOOGLE_API_KEY'
+    else:
+        env_var = f'GOOGLE_API_KEY{key_number}'
+
+    api_key = os.environ.get(env_var) or (os.environ.get('GEMINI_API_KEY') if key_number == 1 else None)
+
+    if not api_key:
+        available_keys = []
+        for i in range(1, 10):  # Check up to 10 keys
+            check_var = 'GOOGLE_API_KEY' if i == 1 else f'GOOGLE_API_KEY{i}'
+            if os.environ.get(check_var):
+                available_keys.append(i)
+
+        error_msg = f"API key not found: {env_var} environment variable not set."
+        if available_keys:
+            error_msg += f"\nAvailable keys: {', '.join(str(k) for k in available_keys)}"
+        else:
+            error_msg += "\nNo GOOGLE_API_KEY environment variables found."
+            error_msg += "\n\nPlease ensure:"
+            error_msg += "\n1. You have a .env file in the current directory"
+            error_msg += "\n2. The .env file contains lines like: GOOGLE_API_KEY=your_key_here"
+            error_msg += "\n3. Or set environment variables manually before running"
+        raise RuntimeError(error_msg)
+
+    logging.info(f"Using API key: {env_var}")
+    return api_key
 
 # Add parent directory to path
 _parent_dir = str(Path(__file__).parent.parent)
@@ -103,10 +160,12 @@ class BatchSimulationRunnerADK:
         n_agents: int = None,
         output_dir: str = "multi-agent-gemma/results",
         dataset_name: str = None,
-        n_questions: int = 10
+        n_questions: int = 10,
+        teamwork_config=None,
+        random_seed: int = 42
     ):
         """
-        Initialize ADK-based batch simulation runner.
+        Initialize ADK-based batch simulation runner with teamwork support.
 
         Args:
             model_name: Gemma model to use
@@ -114,16 +173,21 @@ class BatchSimulationRunnerADK:
             output_dir: Base directory for results
             dataset_name: Dataset to load (medqa, medmcqa, pubmedqa)
             n_questions: Number of questions to process
+            teamwork_config: TeamworkConfig instance for modular components
+            random_seed: Random seed for dataset sampling (default: 42)
         """
         self.model_name = model_name
         self.n_agents_config = n_agents
         self.dataset_name = dataset_name
         self.n_questions = n_questions
+        self.teamwork_config = teamwork_config
+        self.random_seed = random_seed
 
-        # Initialize ADK multi-agent system
+        # Initialize ADK multi-agent system with teamwork config
         self.system = MultiAgentSystemADK(
             model_name=model_name,
-            n_agents=n_agents
+            n_agents=n_agents,
+            teamwork_config=teamwork_config
         )
 
         # Initialize ADK Runner
@@ -156,6 +220,10 @@ class BatchSimulationRunnerADK:
             "timestamp": datetime.now().isoformat()
         }
 
+        # Add teamwork config to configuration
+        if teamwork_config:
+            self.config['teamwork'] = teamwork_config.to_dict()
+
         # Ground truth storage
         self.ground_truth = {}
 
@@ -166,26 +234,26 @@ class BatchSimulationRunnerADK:
         if not DATASETS_AVAILABLE:
             raise RuntimeError("Dataset loaders not available")
 
-        logging.info(f"Loading {self.dataset_name} dataset ({self.n_questions} questions)...")
+        logging.info(f"Loading {self.dataset_name} dataset ({self.n_questions} questions, seed={self.random_seed})...")
 
         if self.dataset_name == "medqa":
-            questions = DatasetLoader.load_medqa(self.n_questions, random_seed=42)
+            questions = DatasetLoader.load_medqa(self.n_questions, random_seed=self.random_seed)
         elif self.dataset_name == "medmcqa":
-            questions, errors = DatasetLoader.load_medmcqa(self.n_questions, random_seed=42)
+            questions, errors = DatasetLoader.load_medmcqa(self.n_questions, random_seed=self.random_seed)
             if errors:
                 logging.warning(f"Skipped {len(errors)} invalid MedMCQA questions")
         elif self.dataset_name == "pubmedqa":
-            questions = DatasetLoader.load_pubmedqa(self.n_questions, random_seed=42)
+            questions = DatasetLoader.load_pubmedqa(self.n_questions, random_seed=self.random_seed)
         elif self.dataset_name == "mmlupro":
-            questions = DatasetLoader.load_mmlupro_med(self.n_questions, random_seed=42)
+            questions = DatasetLoader.load_mmlupro_med(self.n_questions, random_seed=self.random_seed)
         elif self.dataset_name == "ddxplus":
-            questions = DatasetLoader.load_ddxplus(self.n_questions, random_seed=42)
+            questions = DatasetLoader.load_ddxplus(self.n_questions, random_seed=self.random_seed)
         elif self.dataset_name == "medbullets":
-            questions = DatasetLoader.load_medbullets(self.n_questions, random_seed=42)
+            questions = DatasetLoader.load_medbullets(self.n_questions, random_seed=self.random_seed)
         elif self.dataset_name == "pmc_vqa":
-            questions = VisionDatasetLoader.load_pmc_vqa(self.n_questions, random_seed=42)
+            questions = VisionDatasetLoader.load_pmc_vqa(self.n_questions, random_seed=self.random_seed)
         elif self.dataset_name == "path_vqa":
-            questions = VisionDatasetLoader.load_path_vqa(self.n_questions, random_seed=42)
+            questions = VisionDatasetLoader.load_path_vqa(self.n_questions, random_seed=self.random_seed)
         else:
             raise ValueError(f"Unsupported dataset: {self.dataset_name}")
 
@@ -405,8 +473,10 @@ class BatchSimulationRunnerADK:
             round3_results = captured_state.get('round3_results', {})
             aggregation_result = captured_state.get('aggregation_result', {})
             convergence = captured_state.get('convergence', {})
+            teamwork_interactions = captured_state.get('teamwork_interactions', {})
+            api_call_count = captured_state.get('api_call_count', 0)
 
-            logging.debug(f"Extracted from event: agents={len(recruited_agents)}, r1={len(round1_results)}, r2={len(round2_results)}, r3={len(round3_results)}")
+            logging.debug(f"Extracted from event: agents={len(recruited_agents)}, r1={len(round1_results)}, r2={len(round2_results)}, r3={len(round3_results)}, teamwork={list(teamwork_interactions.keys())}")
         else:
             # Fallback: try session state (won't work with current ADK but keep for reference)
             logging.warning("No captured state from events, trying session service (likely empty)")
@@ -425,6 +495,8 @@ class BatchSimulationRunnerADK:
                 round3_results = session.state.get('round3_results', {})
                 aggregation_result = session.state.get('aggregation_result', {})
                 convergence = session.state.get('convergence', {})
+                teamwork_interactions = session.state.get('teamwork_interactions', {})
+                api_call_count = session.state.get('api_call_count', 0)
             except Exception as e:
                 logging.error(f"Error retrieving session {question_id}: {e}")
                 return None
@@ -474,11 +546,38 @@ class BatchSimulationRunnerADK:
             token_data['image_tokens'] = 0
             token_data['has_image'] = False
 
-        # Calculate API calls (1 per agent per round + 1 for recruitment if dynamic)
+        # Get n_agents for metadata
         n_agents = len(recruited_agents)
-        api_calls = n_agents * 3  # 3 rounds
-        if self.n_agents_config is None:  # Dynamic recruitment adds 1-2 calls
-            api_calls += 2  # Count determination + role generation
+
+        # Use dynamic API call count if available, otherwise calculate
+        if api_call_count and api_call_count > 0:
+            api_calls = api_call_count
+            logging.info(f"Using dynamic API call count: {api_calls}")
+        else:
+            # Fallback: Calculate based on structure
+            api_calls = n_agents * 3  # Base: 3 rounds
+
+            # Add recruitment calls if dynamic
+            if self.n_agents_config is None:
+                api_calls += 2
+
+            # Add teamwork component API calls
+            if hasattr(self, 'teamwork_config') and self.teamwork_config:
+                if self.teamwork_config.smm or self.teamwork_config.leadership or self.teamwork_config.trust:
+                    api_calls += 1
+
+                n_turns = getattr(self.teamwork_config, 'n_turns', 2)
+                if n_turns > 1:
+                    api_calls += n_agents * (n_turns - 1)
+
+                if self.teamwork_config.leadership:
+                    api_calls += n_turns
+
+                if self.teamwork_config.mutual_monitoring and self.teamwork_config.leadership:
+                    mm_turns = n_turns - 1
+                    api_calls += mm_turns * 3
+
+            logging.info(f"Using calculated API call count: {api_calls}")
 
         # Log completion
         self.logger.log_question_complete(
@@ -547,6 +646,10 @@ class BatchSimulationRunnerADK:
             # Token usage
             'token_usage': token_data
         }
+
+        # Add teamwork interactions if they exist
+        if 'teamwork_interactions' in locals() and teamwork_interactions:
+            result['teamwork_interactions'] = teamwork_interactions
 
         return result
 
@@ -684,9 +787,10 @@ class BatchSimulationRunnerADK:
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Run ADK-based multi-agent medical reasoning simulation"
+        description="Run ADK-based multi-agent medical reasoning simulation with modular teamwork components"
     )
 
+    # Dataset arguments
     parser.add_argument(
         '--dataset',
         type=str,
@@ -724,7 +828,388 @@ def parse_args():
         help='Output directory for results'
     )
 
+    parser.add_argument(
+        '--key',
+        type=int,
+        default=1,
+        help='API key number to use (1=GOOGLE_API_KEY, 2=GOOGLE_API_KEY2, 3=GOOGLE_API_KEY3, etc.)'
+    )
+
+    parser.add_argument(
+        '--seed',
+        type=int,
+        default=42,
+        help='Random seed for dataset sampling (default: 42 for reproducibility)'
+    )
+
+    # ========== TEAMWORK COMPONENT FLAGS ==========
+    parser.add_argument(
+        '--smm',
+        action='store_true',
+        help='Enable Shared Mental Model component'
+    )
+
+    parser.add_argument(
+        '--leadership',
+        action='store_true',
+        help='Enable Leadership component (Recruiter becomes active Leader)'
+    )
+
+    parser.add_argument(
+        '--team-orientation',
+        action='store_true',
+        help='Enable Team Orientation component (specialized roles + hierarchical weights)'
+    )
+
+    parser.add_argument(
+        '--trust',
+        action='store_true',
+        help='Enable Trust Network component (dynamic trust scoring)'
+    )
+
+    parser.add_argument(
+        '--mutual-monitoring',
+        action='store_true',
+        help='Enable Mutual Monitoring component (inter-round validation)'
+    )
+
+    parser.add_argument(
+        '--all-teamwork',
+        action='store_true',
+        help='Enable ALL teamwork components (SMM + Leadership + TeamO + Trust + MM)'
+    )
+
+    parser.add_argument(
+        '--n-turns',
+        type=int,
+        default=2,
+        choices=[2, 3],
+        help='Number of R3 discussion turns (default: 2)'
+    )
+
+    parser.add_argument(
+        '--all',
+        action='store_true',
+        help='Run ALL 6 configurations: each component individually + all active (organized in parent folder)'
+    )
+
     return parser.parse_args()
+
+
+async def run_all_configurations(args):
+    """
+    Run all 6 teamwork configurations and organize results in parent folder.
+
+    Configurations:
+    1. SMM only
+    2. Leadership only
+    3. Team Orientation only
+    4. Trust only
+    5. Mutual Monitoring only
+    6. All components active
+    """
+    from teamwork_components import TeamworkConfig
+
+    # Create parent folder name: {dataset}_{n_questions}q_all
+    parent_folder = f"{args.dataset}_{args.n_questions}q_all"
+    parent_output_dir = f"{args.output_dir}/{parent_folder}"
+
+    logging.info(f"\n{'='*80}")
+    logging.info(f"RUNNING ALL 6 TEAMWORK CONFIGURATIONS")
+    logging.info(f"Parent folder: {parent_output_dir}")
+    logging.info(f"{'='*80}\n")
+
+    # Define all 6 configurations
+    configurations = [
+        {
+            'name': '1_smm',
+            'config': TeamworkConfig(smm=True, n_turns=args.n_turns),
+            'description': 'Shared Mental Model only'
+        },
+        {
+            'name': '2_leadership',
+            'config': TeamworkConfig(leadership=True, n_turns=args.n_turns),
+            'description': 'Leadership only'
+        },
+        {
+            'name': '3_team_orientation',
+            'config': TeamworkConfig(team_orientation=True, n_turns=args.n_turns),
+            'description': 'Team Orientation only'
+        },
+        {
+            'name': '4_trust',
+            'config': TeamworkConfig(trust=True, n_turns=args.n_turns),
+            'description': 'Trust Network only'
+        },
+        {
+            'name': '5_mutual_monitoring',
+            'config': TeamworkConfig(mutual_monitoring=True, n_turns=args.n_turns),
+            'description': 'Mutual Monitoring only'
+        },
+        {
+            'name': '6_all_active',
+            'config': TeamworkConfig.all_enabled(n_turns=args.n_turns),
+            'description': 'All components active'
+        }
+    ]
+
+    # Store all summaries
+    all_summaries = []
+
+    # Run each configuration sequentially
+    for idx, config_spec in enumerate(configurations, 1):
+        logging.info(f"\n{'='*80}")
+        logging.info(f"CONFIGURATION {idx}/6: {config_spec['description']}")
+        logging.info(f"Output subfolder: {config_spec['name']}")
+        logging.info(f"{'='*80}\n")
+
+        # Create output directory for this configuration
+        config_output_dir = f"{parent_output_dir}/{config_spec['name']}"
+
+        # Create runner for this configuration
+        runner = BatchSimulationRunnerADK(
+            model_name=args.model,
+            n_agents=args.n_agents,
+            output_dir=config_output_dir,
+            dataset_name=args.dataset,
+            n_questions=args.n_questions,
+            teamwork_config=config_spec['config'],
+            random_seed=args.seed
+        )
+
+        try:
+            summary = await runner.run()
+            summary['configuration_name'] = config_spec['name']
+            summary['configuration_description'] = config_spec['description']
+            all_summaries.append(summary)
+
+            logging.info(f"\n✓ Configuration {idx}/6 complete: {config_spec['description']}")
+
+        except Exception as e:
+            logging.error(f"✗ Configuration {idx}/6 failed: {config_spec['description']}")
+            logging.error(f"Error: {e}")
+            import traceback
+            traceback.print_exc()
+
+        finally:
+            # Clean up between runs
+            try:
+                import gc
+                import aiohttp
+                gc.collect()
+                await asyncio.sleep(1.0)
+
+                for obj in gc.get_objects():
+                    if isinstance(obj, aiohttp.ClientSession):
+                        if not obj.closed:
+                            try:
+                                await obj.close()
+                            except:
+                                pass
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                logging.debug(f"Cleanup warning: {e}")
+
+    # Print final summary of all runs
+    logging.info(f"\n{'='*80}")
+    logging.info(f"ALL 6 CONFIGURATIONS COMPLETE")
+    logging.info(f"{'='*80}\n")
+
+    # Build consolidated summary
+    consolidated_results = {
+        'dataset': args.dataset,
+        'n_questions': args.n_questions,
+        'model': args.model,
+        'n_agents': args.n_agents,
+        'timestamp': datetime.now().isoformat(),
+        'configurations': []
+    }
+
+    for idx, summary in enumerate(all_summaries, 1):
+        config_name = summary.get('configuration_description', f'Config {idx}')
+        config_folder = summary.get('configuration_name', f'config_{idx}')
+        accuracy_data = summary.get('accuracy', {})
+
+        if isinstance(accuracy_data, dict):
+            overall_accuracy = accuracy_data.get('overall_accuracy', 0)
+            correct_count = accuracy_data.get('correct_count', 0)
+            total_count = accuracy_data.get('total_count', 0)
+        else:
+            overall_accuracy = 0
+            correct_count = 0
+            total_count = 0
+
+        # Log to console
+        logging.info(f"{idx}. {config_name}: {overall_accuracy:.2%} accuracy")
+
+        # Add to consolidated results
+        consolidated_results['configurations'].append({
+            'rank': idx,
+            'name': config_name,
+            'folder': config_folder,
+            'accuracy': overall_accuracy,
+            'correct': correct_count,
+            'total': total_count,
+            'components': summary.get('teamwork', {}).get('active_components', [])
+        })
+
+    # Save consolidated summary to root of results folder with run numbering
+    import json
+
+    # Determine next run number for summary file
+    parent_path = Path(parent_output_dir)
+    existing_summaries = list(parent_path.glob('all_configurations_summary*.json'))
+
+    if not existing_summaries:
+        summary_filename = 'all_configurations_summary_run1.json'
+    else:
+        # Extract run numbers from existing files
+        run_numbers = []
+        for summary_path in existing_summaries:
+            name = summary_path.stem  # filename without extension
+            if '_run' in name:
+                try:
+                    num_str = name.split('_run')[-1]
+                    num = int(num_str)
+                    run_numbers.append(num)
+                except ValueError:
+                    continue
+
+        next_num = max(run_numbers, default=0) + 1
+        summary_filename = f'all_configurations_summary_run{next_num}.json'
+
+    summary_file = parent_path / summary_filename
+
+    try:
+        with open(summary_file, 'w', encoding='utf-8') as f:
+            json.dump(consolidated_results, f, indent=2, ensure_ascii=False)
+        logging.info(f"\nConsolidated summary saved to: {summary_file}")
+    except Exception as e:
+        logging.error(f"Failed to save consolidated summary: {e}")
+
+    # ========== CREATE CONSOLIDATED TOKEN & INFERENCE METRICS SUMMARY ==========
+    consolidated_token_summary = {
+        'dataset': args.dataset,
+        'n_questions': args.n_questions,
+        'model': args.model,
+        'n_agents': args.n_agents,
+        'timestamp': datetime.now().isoformat(),
+        'configurations': [],
+        'aggregate_stats': {
+            'total_input_tokens': 0,
+            'total_output_tokens': 0,
+            'total_tokens': 0,
+            'total_api_calls': 0,
+            'total_time_seconds': 0,
+            'total_questions_processed': 0
+        }
+    }
+
+    # Extract token/inference metrics from each configuration
+    for idx, summary in enumerate(all_summaries, 1):
+        config_name = summary.get('configuration_description', f'Config {idx}')
+        config_folder = summary.get('configuration_name', f'config_{idx}')
+
+        # Extract token usage
+        token_usage = summary.get('token_usage', {})
+        api_calls = summary.get('api_calls', {})
+        timing = summary.get('timing', {})
+        metadata = summary.get('metadata', {})
+
+        config_token_data = {
+            'rank': idx,
+            'name': config_name,
+            'folder': config_folder,
+            'components': summary.get('teamwork', {}).get('active_components', []),
+            'token_usage': {
+                'total_input_tokens': token_usage.get('total_input_tokens', 0),
+                'total_output_tokens': token_usage.get('total_output_tokens', 0),
+                'total_tokens': token_usage.get('total_tokens', 0),
+                'questions_processed': token_usage.get('questions_processed', 0),
+                'avg_input_tokens_per_question': token_usage.get('avg_input_tokens_per_question', 0),
+                'avg_output_tokens_per_question': token_usage.get('avg_output_tokens_per_question', 0),
+                'avg_total_tokens_per_question': token_usage.get('avg_total_tokens_per_question', 0)
+            },
+            'api_calls': {
+                'total_calls': api_calls.get('total_calls', 0),
+                'avg_calls_per_question': api_calls.get('avg_calls_per_question', 0)
+            },
+            'timing': {
+                'total_time_seconds': timing.get('total_time', 0),
+                'avg_time_per_question': timing.get('avg_time_per_question', 0),
+                'avg_recruit_time': timing.get('avg_recruit_time', 0),
+                'avg_round1_time': timing.get('avg_round1_time', 0),
+                'avg_round2_time': timing.get('avg_round2_time', 0),
+                'avg_round3_time': timing.get('avg_round3_time', 0),
+                'avg_aggregation_time': timing.get('avg_aggregation_time', 0)
+            },
+            'metadata': {
+                'total_questions': metadata.get('total_questions', 0),
+                'avg_agents_per_question': metadata.get('avg_agents_per_question', 0)
+            }
+        }
+
+        consolidated_token_summary['configurations'].append(config_token_data)
+
+        # Accumulate aggregate stats
+        consolidated_token_summary['aggregate_stats']['total_input_tokens'] += token_usage.get('total_input_tokens', 0)
+        consolidated_token_summary['aggregate_stats']['total_output_tokens'] += token_usage.get('total_output_tokens', 0)
+        consolidated_token_summary['aggregate_stats']['total_tokens'] += token_usage.get('total_tokens', 0)
+        consolidated_token_summary['aggregate_stats']['total_api_calls'] += api_calls.get('total_calls', 0)
+        consolidated_token_summary['aggregate_stats']['total_time_seconds'] += timing.get('total_time', 0)
+        consolidated_token_summary['aggregate_stats']['total_questions_processed'] += token_usage.get('questions_processed', 0)
+
+    # Calculate aggregate averages
+    num_configs = len(all_summaries)
+    if num_configs > 0:
+        agg = consolidated_token_summary['aggregate_stats']
+        agg['avg_input_tokens_per_config'] = agg['total_input_tokens'] / num_configs
+        agg['avg_output_tokens_per_config'] = agg['total_output_tokens'] / num_configs
+        agg['avg_total_tokens_per_config'] = agg['total_tokens'] / num_configs
+        agg['avg_api_calls_per_config'] = agg['total_api_calls'] / num_configs
+        agg['avg_time_per_config'] = agg['total_time_seconds'] / num_configs
+
+        # Per-question averages across all configs
+        if agg['total_questions_processed'] > 0:
+            agg['avg_input_tokens_per_question'] = agg['total_input_tokens'] / agg['total_questions_processed']
+            agg['avg_output_tokens_per_question'] = agg['total_output_tokens'] / agg['total_questions_processed']
+            agg['avg_total_tokens_per_question'] = agg['total_tokens'] / agg['total_questions_processed']
+            agg['avg_api_calls_per_question'] = agg['total_api_calls'] / agg['total_questions_processed']
+            agg['avg_time_per_question'] = agg['total_time_seconds'] / agg['total_questions_processed']
+
+    # Determine next run number for token summary file (use same logic as accuracy summary)
+    existing_token_summaries = list(parent_path.glob('all_config_token_summary*.json'))
+
+    if not existing_token_summaries:
+        token_summary_filename = 'all_config_token_summary_run1.json'
+    else:
+        # Extract run numbers from existing files
+        token_run_numbers = []
+        for token_summary_path in existing_token_summaries:
+            name = token_summary_path.stem  # filename without extension
+            if '_run' in name:
+                try:
+                    num_str = name.split('_run')[-1]
+                    num = int(num_str)
+                    token_run_numbers.append(num)
+                except ValueError:
+                    continue
+
+        next_token_num = max(token_run_numbers, default=0) + 1
+        token_summary_filename = f'all_config_token_summary_run{next_token_num}.json'
+
+    token_summary_file = parent_path / token_summary_filename
+
+    try:
+        with open(token_summary_file, 'w', encoding='utf-8') as f:
+            json.dump(consolidated_token_summary, f, indent=2, ensure_ascii=False)
+        logging.info(f"Token/inference metrics summary saved to: {token_summary_file}")
+    except Exception as e:
+        logging.error(f"Failed to save token summary: {e}")
+
+    logging.info(f"\nAll results saved to: {parent_output_dir}")
+
+    return all_summaries
 
 
 async def main():
@@ -738,13 +1223,78 @@ async def main():
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
+    # ========== SET API KEY BASED ON --key PARAMETER ==========
+    try:
+        api_key = get_google_api_key(args.key)
+        # Set as primary environment variable for all downstream code
+        os.environ['GOOGLE_API_KEY'] = api_key
+        os.environ['GEMINI_API_KEY'] = api_key  # Also set fallback
+    except RuntimeError as e:
+        logging.error(f"API Key Error: {e}")
+        return
+
+    # ========== HANDLE --all FLAG ==========
+    if args.all:
+        # Run all 6 configurations
+        summaries = await run_all_configurations(args)
+
+        # Print final summary
+        print(f"\n{'='*80}")
+        print("ALL 6 TEAMWORK CONFIGURATIONS COMPLETE")
+        print(f"{'='*80}")
+        print(f"Dataset: {args.dataset}, Questions: {args.n_questions}")
+        print(f"\nResults:")
+        for idx, summary in enumerate(summaries, 1):
+            config_name = summary.get('configuration_description', f'Config {idx}')
+            accuracy_data = summary.get('accuracy', {})
+            if isinstance(accuracy_data, dict):
+                # Fix: accuracy structure is {'overall_accuracy': float}, not {'overall': {'accuracy': float}}
+                overall_accuracy = accuracy_data.get('overall_accuracy', 0)
+            else:
+                overall_accuracy = 0
+            print(f"  {idx}. {config_name}: {overall_accuracy:.2%}")
+
+        parent_folder = f"{args.dataset}_{args.n_questions}q_all"
+        parent_output_dir = f"{args.output_dir}/{parent_folder}"
+        print(f"\nAll results saved to: {parent_output_dir}")
+        print(f"{'='*80}")
+
+        return
+
+    # ========== CREATE TEAMWORK CONFIG FROM CLI FLAGS ==========
+    from teamwork_components import TeamworkConfig
+
+    # Handle --all-teamwork flag
+    if args.all_teamwork:
+        teamwork_config = TeamworkConfig.all_enabled(n_turns=args.n_turns)
+        logging.info("All teamwork components ENABLED via --all-teamwork flag")
+    else:
+        # Create config from individual flags
+        teamwork_config = TeamworkConfig(
+            smm=args.smm,
+            leadership=args.leadership,
+            team_orientation=args.team_orientation,
+            trust=args.trust,
+            mutual_monitoring=args.mutual_monitoring,
+            n_turns=args.n_turns
+        )
+
+        # Log enabled components
+        active = teamwork_config.get_active_components()
+        if active:
+            logging.info(f"Teamwork components ENABLED: {', '.join(active)}")
+        else:
+            logging.info("Base system mode (all teamwork components OFF)")
+
     # Create and run simulation
     runner = BatchSimulationRunnerADK(
         model_name=args.model,
         n_agents=args.n_agents,
         output_dir=args.output_dir,
         dataset_name=args.dataset,
-        n_questions=args.n_questions
+        n_questions=args.n_questions,
+        teamwork_config=teamwork_config,
+        random_seed=args.seed
     )
 
     try:
