@@ -1,573 +1,391 @@
-# SLM-TeamMedAgents: Multi-Agent Medical Reasoning System
+# SLM-TeamMedAgents: Modular Multi-Agent Medical Reasoning System
 
-A comprehensive multi-agent collaborative reasoning system using Small Language Models (SLMs) for medical question answering. Features dynamic agent recruitment, three-round deliberation, and multiple decision aggregation methods.
+> A comprehensive multi-agent collaborative reasoning framework using Small Language Models (SLMs) for medical question answering, featuring five independently toggleable teamwork components for ablation studies.
 
-## Overview
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Status: Production](https://img.shields.io/badge/Status-Production-success.svg)]()
 
-This system implements a sophisticated multi-agent framework where specialized AI agents collaborate to solve medical questions through structured rounds of independent analysis, collaborative discussion, and final ranking. The system supports both single-question simulations and large-scale batch processing with comprehensive metrics tracking.
+---
 
-## Key Features
+## Abstract
 
-### Multi-Agent Collaboration
-- **Dynamic Agent Recruitment**: LLM determines optimal agent count (2-4) and specializations
-- **Fixed Agent Count**: Manual specification of agent count for controlled experiments
-- **Specialized Agents**: Each agent has unique medical expertise (e.g., cardiologist, radiologist)
-- **Three-Round Deliberation**:
-  - **Round 1**: Independent analysis and initial ranking
-  - **Round 2**: Collaborative discussion and perspective sharing
-  - **Round 3**: Final ranking with revised reasoning
+We present SLM-TeamMedAgents, a modular multi-agent framework for collaborative medical reasoning featuring five pluggable teamwork mechanisms: Shared Mental Model (SMM), Leadership, Team Orientation, Trust Network, and Mutual Monitoring. The system supports 2-4 dynamically recruited specialist agents engaging in structured three-round deliberation with final aggregation via weighted voting schemes. Built on Google's Agent Development Kit (ADK), the system achieves comprehensive ablation study support through independent component toggles while maintaining production-grade reliability and observability.
 
-### Decision Aggregation Methods
-- **Borda Count**: Point-based ranking system (1st=3pts, 2nd=2pts, 3rd=1pt)
-- **Majority Vote**: Most frequently ranked #1 answer
-- **Weighted Consensus**: Trust-based weighting (future enhancement)
+**Key Contributions:**
+- Modular teamwork architecture with independently toggleable components
+- Hierarchical role specialization with medical domain expertise
+- Trust-based dynamic weighting for improved consensus
+- Inter-round mutual monitoring for quality control
+- Comprehensive evaluation framework across 8 medical datasets
 
-### Comprehensive Metrics & Analysis
-- **Accuracy Metrics**: Overall, by method, by task type
-- **Convergence Analysis**: Round 1 vs Round 3 agreement rates
-- **Disagreement Matrix**: Pairwise agent agreement tracking
-- **Opinion Change Tracking**: How often agents revise rankings
-- **Agent Performance**: Individual agent accuracy profiles
+---
 
-### Rate Limiting & Logging
-- **Multi-Agent Rate Limiter**: Coordinates API calls across all agents
-- **Time Estimation**: Batch processing time predictions
-- **Comprehensive Logging**: Detailed simulation logs with timestamps
-- **Results Storage**: JSON results + CSV exports for analysis
+## Table of Contents
 
-### Modular Chat Instances
-- **Google AI Studio**: Managed API access (default)
-- **Hugging Face**: Local model execution
-- **Extensible**: Easy to add new providers
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [System Architecture](#system-architecture)
+- [Usage](#usage)
+- [Experimental Setup](#experimental-setup)
+- [Results](#results)
+- [Documentation](#documentation)
+- [Citation](#citation)
 
-### Supported Models
-- **Gemma3-4B-IT**: General-purpose model with vision capabilities
-- **MedGemma-4B-IT**: Medical-specialized model with vision capabilities
-
-## Architecture
-
-```
-Root Directory
-├── Core System
-│   ├── slm_runner.py               # Base SLM agent wrapper
-│   ├── slm_config.py               # Model configuration & rate limits
-│   ├── chat_instances.py           # Modular chat provider system
-│   └── config.py                   # Multi-agent system configuration
-│
-├── Multi-Agent Components (components/)
-│   ├── gemma_agent.py              # Individual agent with memory
-│   ├── agent_recruiter.py          # Dynamic/fixed agent recruitment
-│   ├── simulation_rounds.py        # Three-round orchestration
-│   ├── decision_aggregator.py      # Borda/Majority/Weighted methods
-│   ├── multi_agent_system.py       # Main orchestrator
-│   └── rate_limit_manager.py       # Multi-agent rate limiting
-│
-├── Utilities (utils/)
-│   ├── prompts.py                  # Round-specific prompt templates
-│   ├── rate_limiter.py             # Base rate limiting logic
-│   ├── results_logger.py           # Token tracking & logging
-│   ├── simulation_logger.py        # Multi-agent simulation logs
-│   ├── results_storage.py          # JSON/CSV results storage
-│   └── metrics_calculator.py       # Comprehensive metrics analysis
-│
-├── Medical Datasets (medical_datasets/)
-│   ├── dataset_loader.py           # Dataset loading utilities
-│   ├── dataset_formatters.py       # Text dataset formatting
-│   ├── vision_dataset_formatters.py # Image dataset formatting
-│   └── dataset_runner.py           # Batch dataset processing
-│
-├── Entry Points
-│   ├── run_simulation.py           # Multi-agent simulation runner
-│   └── test_system.py              # System validation tests
-│
-└── Results Output
-    ├── results/                    # Multi-agent simulation results
-    │   ├── {model_name}/
-    │   │   ├── {dataset_name}/
-    │   │   │   ├── results_{timestamp}.json
-    │   │   │   ├── accuracy_summary.csv
-    │   │   │   ├── disagreement_matrix.csv
-    │   │   │   └── summary_report.json
-    │   │   └── metrics/
-    │   └── logs/
-    │       └── simulation_{timestamp}.log
-    │
-    └── SLM_Results/               # Single-agent baseline results
-        ├── gemma3_4b/
-        └── medgemma_4b/
-```
+---
 
 ## Installation
 
 ### Prerequisites
+- Python 3.9+
+- Google Generative AI API key
+- 16GB+ RAM (recommended)
+
+### Setup
+
+1. **Clone repository:**
 ```bash
-# Python 3.8+
-pip install google-genai transformers torch pillow tqdm datasets
+git clone https://github.com/yourusername/SLM-TeamMedAgents
+cd SLM-TeamMedAgents
 ```
 
-### Environment Setup
-
-**For Google AI Studio (Default)**:
+2. **Install dependencies:**
 ```bash
-export GEMINI_API_KEY="your_gemini_api_key_here"
+pip install -r requirements.txt
+pip install google-adk google-genai
 ```
 
-**For Hugging Face Local**:
+3. **Configure API keys:**
 ```bash
-export HUGGINGFACE_TOKEN="your_hf_token_here"
-huggingface-cli login  # For gated models
+export GOOGLE_API_KEY="your-api-key-here"
 ```
+
+Or create `.env` file:
+```env
+GOOGLE_API_KEY=your_api_key_here
+GOOGLE_API_KEY2=your_second_key  # Optional for parallel runs
+GOOGLE_API_KEY3=your_third_key   # Optional for parallel runs
+```
+
+4. **Verify installation:**
+```bash
+python run_simulation_adk.py --help
+```
+
+---
+
+## Quick Start
+
+### Basic Execution
+
+```bash
+# Base system (no teamwork components)
+python run_simulation_adk.py \
+  --dataset medqa \
+  --n-questions 10 \
+  --n-agents 3
+
+# Full system (all components enabled)
+python run_simulation_adk.py \
+  --dataset medqa \
+  --n-questions 10 \
+  --all-teamwork
+```
+
+### Ablation Study
+
+```bash
+# Test individual components
+python run_simulation_adk.py --dataset medqa --n-questions 10 --smm
+python run_simulation_adk.py --dataset medqa --n-questions 10 --leadership
+python run_simulation_adk.py --dataset medqa --n-questions 10 --trust
+
+# Combined components
+python run_simulation_adk.py --dataset medqa --n-questions 10 --leadership --team-orientation
+```
+
+---
+
+## System Architecture
+
+### Pipeline Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│           Multi-Agent System Pipeline                    │
+├─────────────────────────────────────────────────────────┤
+│                                                           │
+│  Phase 1: RECRUITMENT (2 API calls)                     │
+│  ├─ Dynamic/Fixed agent recruitment (2-4 agents)        │
+│  ├─ [SMM] Question analysis & trick detection           │
+│  ├─ [Leadership] Recruiter → Leader designation         │
+│  └─ [TeamO] Medical specialty assignment + weights      │
+│                                                           │
+│  Phase 2: ROUND 2 - Initial Prediction (N+1 calls)     │
+│  ├─ Parallel agent predictions                          │
+│  ├─ [SMM] Inject shared context                         │
+│  └─ Post-R2: Extract facts, create report, evaluate     │
+│                                                           │
+│  Phase 3: ROUND 3 - Collaborative Discussion            │
+│  ├─ Multi-turn discussion (2-3 turns)                   │
+│  ├─ [Leadership] Mediation after each turn              │
+│  ├─ [MM] Challenge weakest agent (between turns)        │
+│  └─ Final turn: Extract rankings                        │
+│                                                           │
+│  Phase 4: AGGREGATION                                   │
+│  ├─ [Trust] Trust-weighted Borda count                  │
+│  ├─ [TeamO] Hierarchical-weighted voting                │
+│  └─ [Leadership] Tie-breaking with correction power     │
+│                                                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Teamwork Components
+
+| Component | Purpose | Impact | Dependencies |
+|-----------|---------|--------|--------------|
+| **Shared Mental Model** | Passive knowledge repository | Shared context reduces redundancy | None |
+| **Leadership** | Active orchestration | Structured coordination & quality control | Enhances SMM/TO/Trust |
+| **Team Orientation** | Role specialization | Medical expertise with weighted voting | Best with Leadership |
+| **Trust Network** | Dynamic reliability scoring | Reliable agents weighted more | Leadership can evaluate |
+| **Mutual Monitoring** | Inter-round validation | Fact-checking & reasoning improvement | Requires Leadership |
+
+### Directory Structure
+
+```
+SLM-TeamMedAgents/
+├── adk_agents/                  # Core ADK agent implementations
+│   ├── multi_agent_system_adk.py       # Root coordinator
+│   ├── dynamic_recruiter_adk.py        # Agent recruitment
+│   ├── three_round_debate_adk.py       # 3-round reasoning
+│   ├── decision_aggregator_adk.py      # Voting methods
+│   └── gemma_agent_adk.py              # Gemma agent factory
+│
+├── teamwork_components/          # Modular teamwork mechanisms
+│   ├── config.py                       # TeamworkConfig class
+│   ├── shared_mental_model.py          # SMM implementation
+│   ├── leadership.py                   # Leadership coordinator
+│   ├── team_orientation.py             # Role specialization
+│   ├── trust_network.py                # Trust scoring
+│   └── mutual_monitoring.py            # Inter-round validation
+│
+├── medical_datasets/             # Dataset loaders & formatters
+│   ├── dataset_loader.py               # Text datasets
+│   ├── vision_dataset_loader.py        # Image datasets
+│   ├── dataset_formatters.py           # Text formatters
+│   └── vision_dataset_formatters.py    # Image formatters
+│
+├── utils/                        # Utilities
+│   ├── simulation_logger.py            # Logging system
+│   ├── results_storage.py              # Results management
+│   ├── metrics_calculator.py           # Performance metrics
+│   ├── prompts.py                      # Prompt templates
+│   └── rate_limiter.py                 # API rate limiting
+│
+├── documentation/                # Documentation
+│   ├── SYSTEM_ARCHITECTURE.md          # Algorithm specification
+│   ├── ADK_GUIDE.md                    # ADK system guide
+│   ├── BASELINE_BENCHMARKS.md          # Baseline evaluation
+│   ├── QUICKSTART.md                   # Quick start guide
+│   ├── TOKEN_SUMMARY_GUIDE.md          # Metrics guide
+│   ├── PROMPT_IMPROVEMENTS.md          # Prompt details
+│   └── KNOWLEDGE.md                    # System knowledge base
+│
+└── run_simulation_adk.py         # Main entry point
+```
+
+---
 
 ## Usage
 
-### Single Question Simulation
+### Command-Line Interface
 
 ```bash
-# Quick test with dynamic recruitment
-python run_simulation.py \
-  --question "A 65-year-old patient presents with chest pain..." \
-  --options "A) Myocardial infarction" "B) Angina pectoris" "C) GERD" "D) Panic attack" \
-  --ground_truth "A"
-
-# Fixed agent count
-python run_simulation.py \
-  --question "..." \
-  --options "A) ..." "B) ..." \
-  --n_agents 3 \
-  --model medgemma_4b
+python run_simulation_adk.py [OPTIONS]
 ```
 
-### Batch Processing
+**Required:**
+- `--dataset DATASET` - Dataset: medqa, medmcqa, pubmedqa, mmlupro, ddxplus, medbullets, pmc_vqa, path_vqa
 
-```bash
-# Process 10 questions from MedQA
-python run_simulation.py \
-  --dataset medqa \
-  --n_questions 10 \
-  --n_agents 3 \
-  --model gemma3_4b
+**Optional:**
+- `--n-questions N` - Number of questions (default: 10)
+- `--n-agents N` - Fixed agent count (default: dynamic 2-4)
+- `--model MODEL` - Model: gemma3_4b, gemma2_9b, gemma2_27b, medgemma_4b
+- `--output-dir DIR` - Output directory
+- `--seed N` - Random seed for reproducibility
+- `--key N` - API key number (1, 2, 3, etc.)
 
-# Process 50 questions from MedMCQA with dynamic recruitment
-python run_simulation.py \
-  --dataset medmcqa \
-  --n_questions 50 \
-  --model medgemma_4b
+**Teamwork Components:**
+- `--smm` - Enable Shared Mental Model
+- `--leadership` - Enable Leadership
+- `--team-orientation` - Enable Team Orientation
+- `--trust` - Enable Trust Network
+- `--mutual-monitoring` - Enable Mutual Monitoring
+- `--all-teamwork` - Enable all components
+- `--n-turns N` - Discussion turns (2 or 3)
 
-# Full dataset evaluation
-python run_simulation.py \
-  --dataset medqa \
-  --n_questions 100 \
-  --n_agents 2 \
-  --output_dir results/full_eval
-```
+### Supported Models
+
+| Model | Size | Vision | Specialization |
+|-------|------|--------|----------------|
+| gemma3_4b | 4B | ✓ | General-purpose |
+| gemma2_9b | 9B | ✓ | General-purpose |
+| gemma2_27b | 27B | ✓ | High-capacity |
+| medgemma_4b | 4B | ✓ | Medical-specialized |
 
 ### Supported Datasets
 
-- **medqa**: USMLE-style medical questions
-- **medmcqa**: Indian medical entrance exam questions
-- **pubmedqa**: Biomedical research questions
-- **mmlu_medical**: MMLU medical subset
-- **pmc_vqa**: Medical visual question answering (with images)
-- **path_vqa**: Pathology image analysis
+**Text Datasets:**
+- **medqa** - USMLE-style medical questions (271k questions)
+- **medmcqa** - Indian medical entrance exams (194k questions)
+- **pubmedqa** - Biomedical research questions (1k questions)
+- **mmlupro** - MMLU-Pro Health subset
+- **medbullets** - Clinical case questions
+- **ddxplus** - Differential diagnosis
 
-### Command-Line Options
+**Vision Datasets:**
+- **pmc_vqa** - Medical visual QA (227k images)
+- **path_vqa** - Pathology image analysis (33k images)
 
-```bash
-python run_simulation.py --help
+---
 
-Options:
-  --question TEXT           Single question to process
-  --options TEXT            Answer options (multiple)
-  --ground_truth TEXT       Correct answer for evaluation
-  --dataset TEXT            Dataset name for batch processing
-  --n_questions INT         Number of questions (default: 10)
-  --n_agents INT            Fixed agent count (2-4) or None for dynamic
-  --model TEXT              Model name (gemma3_4b, medgemma_4b)
-  --chat_instance TEXT      Chat instance type (google_ai_studio, huggingface)
-  --output_dir TEXT         Output directory (default: results/)
-  --enable_logging          Enable detailed logging (default: True)
-```
+## Experimental Setup
 
-## Configuration
+### Reproducibility
 
-### Multi-Agent System Settings ([config.py](config.py))
+**Fixed Parameters:**
+- Model: gemma3_4b (default)
+- Temperature: 0.7 (reasoning), 0.5 (recruitment)
+- Max tokens: 2048
+- Random seed: Configurable via `--seed`
 
-```python
-# Agent Configuration
-DEFAULT_MODEL = "gemma3_4b"
-DEFAULT_N_AGENTS = 3
-MIN_AGENTS = 2
-MAX_AGENTS = 4
+**API Call Management:**
+- Exponential backoff retry (5 attempts)
+- Base delay: 60s for rate limits
+- Jitter: ±20% to prevent thundering herd
 
-# Round Configuration
-ENABLE_ROUND_1 = True  # Independent analysis
-ENABLE_ROUND_2 = True  # Collaborative discussion
-ENABLE_ROUND_3 = True  # Final ranking
+### Ablation Study Configuration
 
-# Decision Aggregation
-PRIMARY_DECISION_METHOD = "borda_count"
-DEFAULT_AGGREGATION_METHODS = ["borda_count", "majority_vote", "weighted_consensus"]
-
-# Rate Limiting
-ENABLE_RATE_LIMITING = True
-ESTIMATE_TOKENS_PER_ROUND = 1000
-
-# Logging
-ENABLE_DETAILED_LOGGING = True
-LOG_AGENT_REASONING = True
-```
-
-### Model Configuration ([slm_config.py](slm_config.py))
-
-```python
-# Rate Limits (per model)
-RATE_LIMITS = {
-    "gemma3_4b": {
-        "rpm": 30,      # Requests per minute
-        "tpm": 15000,   # Tokens per minute
-        "rpd": 14400    # Requests per day
-    },
-    "medgemma_4b": {
-        "rpm": 30,
-        "tpm": 15000,
-        "rpd": 14400
-    }
-}
-```
-
-## Output Structure
-
-### Simulation Results
-
-Each simulation produces comprehensive JSON results:
-
-```json
-{
-  "question": "...",
-  "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
-  "task_type": "mcq",
-  "recruited_agents": [
-    {
-      "agent_id": "Agent_1",
-      "role": "Cardiologist",
-      "expertise": "Cardiovascular diseases, ECG interpretation"
-    }
-  ],
-  "round1_results": {
-    "Agent_1": {
-      "ranking": ["A", "B", "C", "D"],
-      "reasoning": "...",
-      "response_time": 2.34
-    }
-  },
-  "round2_results": { /* collaborative discussion */ },
-  "round3_results": { /* final rankings */ },
-  "final_decision": {
-    "borda_count": {
-      "winner": "A",
-      "scores": {"A": 12, "B": 6, "C": 3, "D": 0},
-      "confidence": 0.92
-    },
-    "majority_vote": {
-      "winner": "A",
-      "vote_counts": {"A": 3, "B": 0}
-    },
-    "primary_answer": "A"
-  },
-  "agreement_metrics": {
-    "kendall_w": 0.87,
-    "avg_pairwise_agreement": 0.82
-  },
-  "is_correct": true,
-  "metadata": {
-    "timestamp": "2025-10-06T15:30:00",
-    "total_time": 12.45,
-    "n_agents": 3,
-    "model_name": "gemma3_4b"
-  }
-}
-```
-
-### Batch Results
-
-Batch processing generates:
-
-1. **Individual Results**: `results_{timestamp}.json` (all questions)
-2. **Accuracy Summary**: `accuracy_summary.csv`
-   ```csv
-   Metric,Value,Correct,Total
-   Overall Accuracy,0.850,17,20
-   Borda Count Accuracy,0.850,17,20
-   Majority Vote Accuracy,0.800,16,20
-   ```
-
-3. **Disagreement Matrix**: `disagreement_matrix.csv`
-   ```csv
-   ,Agent_1,Agent_2,Agent_3
-   Agent_1,1.000,0.850,0.820
-   Agent_2,0.850,1.000,0.780
-   Agent_3,0.820,0.780,1.000
-   ```
-
-4. **Summary Report**: `summary_report.json` (comprehensive metrics)
-
-5. **Simulation Logs**: `logs/simulation_{timestamp}.log`
-
-## Testing
-
-### System Validation
+Test individual component impact:
 
 ```bash
-# Run all validation tests
-python test_system.py
+# Baseline (no teamwork)
+python run_simulation_adk.py --dataset medqa --n-questions 50 --seed 42
 
-# Tests include:
-# - Import validation
-# - Prompt generation
-# - Single simulation (if API key available)
+# +SMM
+python run_simulation_adk.py --dataset medqa --n-questions 50 --seed 42 --smm
+
+# +Leadership
+python run_simulation_adk.py --dataset medqa --n-questions 50 --seed 42 --leadership
+
+# +Team Orientation (with Leadership)
+python run_simulation_adk.py --dataset medqa --n-questions 50 --seed 42 --leadership --team-orientation
+
+# +Trust
+python run_simulation_adk.py --dataset medqa --n-questions 50 --seed 42 --trust
+
+# +Mutual Monitoring (with Leadership + Trust)
+python run_simulation_adk.py --dataset medqa --n-questions 50 --seed 42 --leadership --trust --mutual-monitoring
+
+# Full system
+python run_simulation_adk.py --dataset medqa --n-questions 50 --seed 42 --all-teamwork
 ```
 
-### Example Output
+### Baseline Benchmarks
 
-```
-======================================================================
-MULTI-AGENT GEMMA SYSTEM - TEST SUITE
-======================================================================
-
-Testing imports...
-  [OK] config
-  [OK] components
-  [OK] utils
-
-[PASS] All imports successful
-
-
-======================================================================
-TESTING PROMPT GENERATION
-======================================================================
-
-Testing Round 1 prompts...
-  [OK] Prompt generated (length: 450)
-
-[PASS] All prompt tests passed
-
-
-======================================================================
-TESTING SIMPLE SIMULATION
-======================================================================
-
-Running 3-agent simulation...
-  [OK] Recruited 3 agents
-  [OK] Round 1 complete (3 responses)
-  [OK] Round 2 complete (3 responses)
-  [OK] Round 3 complete (3 rankings)
-  [OK] Final decision: A (Borda Count)
-  [OK] Simulation time: 8.23s
-
-[PASS] Simulation test passed
-
-
-======================================================================
-TEST SUMMARY
-======================================================================
-Imports             : [PASS] PASSED
-Prompts             : [PASS] PASSED
-Simulation          : [PASS] PASSED
-
-Total: 3 passed, 0 failed, 0 skipped
-
-[PASS] ALL TESTS PASSED
-```
-
-## Performance Metrics
-
-### Time Estimates
-
-The system provides automatic time estimation for batch processing:
-
-```
-======================================================================
-BATCH PROCESSING TIME ESTIMATE
-======================================================================
-Questions to process: 100
-Agents per question: 3
-Total API calls: 900 (9 per question)
-
-Rate Limits:
-  - Requests per minute: 30
-  - Tokens per minute: 15000
-  - Requests per day: 14400
-  - Limiting factor: RPM (requests per minute)
-
-Processing Rate:
-  - Questions per minute: 3.33
-  - Questions per hour: 200.0
-  - Questions per day: 1600
-
-Estimated Time:
-  [TIME] 36.0 minutes
-
-(Estimate includes 20% buffer for retries and overhead)
-======================================================================
-```
-
-### Typical Performance
-
-- **Single Question**: 8-15 seconds (3 agents, 3 rounds)
-- **Batch (10 questions)**: 2-3 minutes
-- **Batch (100 questions)**: 30-40 minutes
-- **Large Dataset (1000 questions)**: 5-6 hours
-
-*Times vary based on model, rate limits, and network conditions*
-
-## Metrics & Analysis
-
-### Calculated Metrics
-
-1. **Accuracy Metrics**
-   - Overall accuracy (all methods)
-   - Per-method accuracy (Borda, Majority, Weighted)
-   - Per-task-type accuracy
-
-2. **Convergence Analysis**
-   - Round 1 → Round 3 agreement rate
-   - Opinion change frequency
-   - Convergence direction (toward correct answer)
-
-3. **Disagreement Analysis**
-   - Pairwise agent agreement matrix
-   - Most/least agreeable agent pairs
-   - Disagreement patterns
-
-4. **Agent Performance**
-   - Individual agent accuracy
-   - Agent specialization effectiveness
-   - Best performing agent identification
-
-### Accessing Metrics
-
-```python
-from utils.metrics_calculator import MetricsCalculator
-
-calculator = MetricsCalculator()
-calculator.add_simulation_result(result)  # Add results
-
-# Calculate metrics
-accuracy = calculator.calculate_accuracy(ground_truth_answers)
-convergence = calculator.calculate_convergence()
-disagreement = calculator.calculate_disagreement_matrix()
-summary = calculator.generate_summary_report(ground_truth_answers)
-```
-
-## Advanced Usage
-
-### Custom Agent Configuration
-
-```python
-from components import MultiAgentSystem
-
-# Create system with custom settings
-system = MultiAgentSystem(
-    model_name="medgemma_4b",
-    n_agents=4,  # Fixed 4 agents
-    chat_instance_type="google_ai_studio",
-    enable_dynamic_recruitment=False  # Disable dynamic recruitment
-)
-
-# Run simulation
-result = system.run_simulation(
-    question="...",
-    options=["A) ...", "B) ...", "C) ...", "D) ..."],
-    task_type="mcq",
-    ground_truth="A"
-)
-```
-
-### Batch Processing with Custom Settings
-
-```python
-from run_simulation import BatchSimulationRunner
-
-runner = BatchSimulationRunner(
-    model_name="gemma3_4b",
-    n_agents=3,
-    output_dir="results/custom_experiment",
-    dataset_name="medqa",
-    n_questions=50
-)
-
-results = runner.run()
-```
-
-### Rate Limit Management
-
-```python
-from components.rate_limit_manager import MultiAgentRateLimiter
-
-limiter = MultiAgentRateLimiter(model_name="gemma3_4b", n_agents=3)
-
-# Get time estimate
-estimate = limiter.estimate_time(n_questions=100)
-print(f"Estimated time: {estimate['estimated_hours']:.1f} hours")
-
-# Check current status
-status = limiter.get_rate_status()
-print(f"RPM utilization: {status['rpm_utilization']:.1%}")
-```
-
-## Future Enhancements
-
-### Planned Features (Phase 2)
-
-1. **Leadership Component**: One agent coordinates discussion and breaks ties
-2. **Trust Network**: Dynamic trust scores based on historical accuracy
-3. **Mutual Monitoring**: Agents check each other's reasoning for errors
-4. **Team Orientation**: Emphasis on consensus-building
-
-### Extensibility
-
-The system is designed for easy extension:
-
-- **New Aggregation Methods**: Add to [decision_aggregator.py](components/decision_aggregator.py)
-- **New Round Types**: Extend [simulation_rounds.py](components/simulation_rounds.py)
-- **Custom Metrics**: Add to [metrics_calculator.py](utils/metrics_calculator.py)
-- **New Chat Instances**: Register in [chat_instances.py](chat_instances.py)
-
-## Troubleshooting
-
-### Common Issues
-
-**Import Errors**:
-- Ensure all files are in root directory (not subdirectories)
-- Check `__init__.py` files exist in `components/` and `utils/`
-
-**API Rate Limits**:
-- Adjust rate limits in [slm_config.py](slm_config.py)
-- Enable rate limiting: `ENABLE_RATE_LIMITING = True` in [config.py](config.py)
-
-**Missing API Keys**:
-```bash
-# Check if key is set
-echo $GEMINI_API_KEY
-
-# Set key
-export GEMINI_API_KEY="your_key_here"
-```
-
-**Memory Issues (HuggingFace Local)**:
-- Reduce batch size
-- Use smaller model
-- Enable gradient checkpointing
-
-### Debug Mode
+Evaluate baseline performance across prompting methods:
 
 ```bash
-# Enable verbose logging
-python run_simulation.py --dataset medqa --n_questions 5 --verbose
+# Sequential execution (single key)
+run_baseline_benchmarks.bat
 
-# Check system configuration
-python -c "from config import *; print(f'Model: {DEFAULT_MODEL}, Agents: {DEFAULT_N_AGENTS}')"
+# Parallel execution (3 keys)
+launch_all_parallel.bat
 ```
+
+**Configuration:**
+- **Datasets:** 8 (all medical datasets)
+- **Methods:** 3 (zero-shot, few-shot, CoT)
+- **Seeds:** 3 (for robustness)
+- **Total runs:** 72 (8 × 3 × 3)
+- **Questions per run:** 50
+
+---
+
+## Results
+
+### Output Structure
+
+Results saved to: `{output_dir}/{dataset}_{n_questions}q_run{X}/`
+
+```
+medqa_50q_run1/
+├── questions/                    # Individual question results
+│   ├── q001_results.json
+│   ├── q002_results.json
+│   └── ...
+├── summary_report.json           # Aggregate metrics
+├── accuracy_summary.json         # Accuracy breakdown
+├── convergence_analysis.json     # Convergence metrics
+├── agent_performance.json        # Per-agent statistics
+├── simulation.log                # Detailed execution log
+└── config.json                   # Run configuration
+```
+
+### Key Metrics
+
+**Performance Metrics:**
+- Overall accuracy
+- Per-method accuracy (Borda, Majority, Weighted)
+- Per-task-type accuracy
+
+**Teamwork Metrics:**
+- Convergence rate (Round 1 → Round 3)
+- Agent agreement (pairwise, full)
+- Trust score evolution
+- Opinion change frequency
+
+**Efficiency Metrics:**
+- API calls per question
+- Execution time (total, per-phase)
+- Token usage (input/output/total)
+
+### Expected Performance
+
+**API Calls (N=3, n_turns=2):**
+
+| Configuration | Calls/Question |
+|---------------|----------------|
+| Base | 9 |
+| +SMM | 9 |
+| +Leadership | 11 |
+| +Trust | 9 |
+| +MM | 12 |
+| **ALL ON** | 14 |
+
+**Timing (N=3, n_turns=2):**
+- Recruitment: ~2-5 seconds
+- Round 2: ~5-8 seconds
+- Round 3: ~6-10 seconds
+- Aggregation: < 1 second
+- **Total:** ~15-25 seconds per question
+
+---
+
+## Documentation
+
+### Core Documentation
+- **[SYSTEM_ARCHITECTURE.md](documentation/SYSTEM_ARCHITECTURE.md)** - Algorithm specification & complexity analysis
+- **[ADK_GUIDE.md](documentation/ADK_GUIDE.md)** - ADK system guide & API reference
+- **[BASELINE_BENCHMARKS.md](documentation/BASELINE_BENCHMARKS.md)** - Baseline evaluation & multi-key usage
+- **[QUICKSTART.md](documentation/QUICKSTART.md)** - Quick start guide with examples
+
+### Additional Resources
+- **[TOKEN_SUMMARY_GUIDE.md](documentation/TOKEN_SUMMARY_GUIDE.md)** - Token usage & cost analysis
+- **[PROMPT_IMPROVEMENTS.md](documentation/PROMPT_IMPROVEMENTS.md)** - Prompt engineering details
+- **[KNOWLEDGE.md](documentation/KNOWLEDGE.md)** - System knowledge base & design patterns
+
+---
 
 ## Citation
 
@@ -575,32 +393,37 @@ If you use this system in your research, please cite:
 
 ```bibtex
 @software{slm_teammedagents,
-  title={SLM-TeamMedAgents: Multi-Agent Medical Reasoning System},
+  title={SLM-TeamMedAgents: Modular Multi-Agent Medical Reasoning System},
   author={Your Name},
   year={2025},
-  url={https://github.com/yourusername/SLM-TeamMedAgents}
+  url={https://github.com/yourusername/SLM-TeamMedAgents},
+  note={Built on Google's Agent Development Kit (ADK)}
 }
 ```
 
+---
+
 ## License
 
-MIT License - see LICENSE file for details
-
-## Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new features
-4. Submit a pull request
-
-## Acknowledgments
-
-- Built on Google's Gemma and MedGemma models
-- Uses Anthropic's multi-agent collaboration principles
-- Inspired by medical team decision-making research
+MIT License - see [LICENSE](LICENSE) file for details
 
 ---
 
-**Last Updated**: October 6, 2025
-**Version**: 2.0.0 (Multi-Agent System Complete)
+## Acknowledgments
+
+- **Google DeepMind** - Gemma and MedGemma models
+- **Google ADK Team** - Agent Development Kit framework
+- **Dataset Providers** - MedQA, MedMCQA, PubMedQA, PMC-VQA, Path-VQA
+
+---
+
+## Contact
+
+For questions, issues, or collaboration:
+- **GitHub Issues:** [Link]
+- **Email:** [Your Email]
+- **Documentation:** See `documentation/` folder
+
+---
+
+**Version:** 1.0.0 | **Status:** Production Ready | **Last Updated:** 2025-11-06
