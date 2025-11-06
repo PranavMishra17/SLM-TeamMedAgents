@@ -1,5 +1,5 @@
 Baseline Benchmark Log - Key 3, Seed 3 
-Started: Wed 11/05/2025 14:23:18.39 
+Started: Wed 11/05/2025 21:39:31.39 
  
 ========================================
 Dataset: medqa 
@@ -48,13 +48,3 @@ Dataset: pubmedqa
 SUCCESS: Completed pubmedqa - zero_shot 
  
 [11/24] pubmedqa - few_shot 
-SUCCESS: Completed pubmedqa - few_shot 
- 
-[12/24] pubmedqa - cot 
-SUCCESS: Completed pubmedqa - cot 
- 
-========================================
-Dataset: medbullets 
-========================================
- 
-[13/24] medbullets - zero_shot 

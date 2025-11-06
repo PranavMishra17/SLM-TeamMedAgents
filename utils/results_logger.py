@@ -196,16 +196,17 @@ class ResultsLogger:
         with open(question_file, 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
     
-    def save_run_results(self, results: List[Dict[str, Any]], summary: Dict[str, Any], 
-                        model_name: str, dataset: str, method: str, chat_instance_type: str):
-        """Save complete run results with enhanced summary."""
+    def save_run_results(self, results: List[Dict[str, Any]], summary: Dict[str, Any],
+                        model_name: str, dataset: str, method: str, chat_instance_type: str, random_seed: int = 42):
+        """Save complete run results with enhanced summary - INCLUDES SEED IN FILENAME."""
         result_dir = self.get_result_path(model_name, dataset, method)
         self.ensure_directory(result_dir)
-        
+
         # Add token summary to main summary
         token_summary = self.token_counter.get_summary()
         summary["token_usage"] = token_summary
-        
+        summary["random_seed"] = random_seed  # CRITICAL: Store seed in summary
+
         # Create detailed results
         detailed_results = {
             "summary": summary,
@@ -216,36 +217,38 @@ class ResultsLogger:
                 "dataset": dataset,
                 "method": method,
                 "chat_instance_type": chat_instance_type,
+                "random_seed": random_seed,
                 "timestamp": datetime.now().isoformat()
             }
         }
-        
-        # Save detailed results
+
+        # Save detailed results with SEED in filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        results_file = os.path.join(result_dir, f"results_{dataset}_{method}_{model_name}_{chat_instance_type}_{timestamp}.json")
+        results_file = os.path.join(result_dir, f"seed_{random_seed}_results_{timestamp}.json")
         with open(results_file, 'w', encoding='utf-8') as f:
             json.dump(detailed_results, f, indent=2, ensure_ascii=False)
-        
-        # Save summary
-        summary_file = os.path.join(result_dir, f"summary_{dataset}_{method}_{model_name}_{chat_instance_type}.json")
+
+        # Save summary with SEED in filename
+        summary_file = os.path.join(result_dir, f"seed_{random_seed}_summary.json")
         with open(summary_file, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, ensure_ascii=False)
-        
+
         # Reset token counter for next run
         self.token_counter.reset()
-        
+
         logging.info(f"Results saved to: {results_file}")
+        logging.info(f"Summary saved to: {summary_file}")
         return results_file, summary_file
     
     def aggregate_method_results(self, model_name: str, dataset: str, method: str):
-        """Aggregate all results for a specific method in a dataset."""
+        """Aggregate all results for a specific method in a dataset across all seeds."""
         method_dir = self.get_result_path(model_name, dataset, method)
-        
+
         if not os.path.exists(method_dir):
             return None
-        
-        # Find all summary files
-        summary_files = [f for f in os.listdir(method_dir) if f.startswith('summary_') and f.endswith('.json')]
+
+        # Find all seed summary files (seed_1_summary.json, seed_2_summary.json, etc.)
+        summary_files = [f for f in os.listdir(method_dir) if f.startswith('seed_') and f.endswith('_summary.json')]
         
         if not summary_files:
             return None

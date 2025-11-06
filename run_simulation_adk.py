@@ -201,7 +201,8 @@ class BatchSimulationRunnerADK:
         self.storage = ResultsStorage(
             output_dir=output_dir,
             dataset_name=dataset_name,
-            n_questions=n_questions
+            n_questions=n_questions,
+            random_seed=random_seed
         )
         self.logger = SimulationLogger(
             output_dir=output_dir,
@@ -217,6 +218,7 @@ class BatchSimulationRunnerADK:
             "n_agents": n_agents if n_agents else "dynamic (2-4)",
             "dataset": dataset_name,
             "n_questions": n_questions,
+            "random_seed": random_seed,
             "timestamp": datetime.now().isoformat()
         }
 

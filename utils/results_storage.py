@@ -30,7 +30,7 @@ class ResultsStorage:
           └── summary_report.json
     """
 
-    def __init__(self, output_dir: str, run_id: str = None, dataset_name: str = None, n_questions: int = None):
+    def __init__(self, output_dir: str, run_id: str = None, dataset_name: str = None, n_questions: int = None, random_seed: int = None):
         """
         Initialize results storage.
 
@@ -39,12 +39,13 @@ class ResultsStorage:
             run_id: Unique run identifier (auto-generated if None)
             dataset_name: Dataset name for run_id generation
             n_questions: Number of questions for run_id generation
+            random_seed: Random seed for unique run identification (prevents overwrites)
         """
         if run_id:
             self.run_id = run_id
         elif dataset_name and n_questions:
-            # Create descriptive run_id: medqa_10q_run1, medqa_10q_run2, etc.
-            self.run_id = self._generate_run_id(output_dir, dataset_name, n_questions)
+            # Create descriptive run_id: medqa_50q_seed1_run1, medqa_50q_seed2_run1, etc.
+            self.run_id = self._generate_run_id(output_dir, dataset_name, n_questions, random_seed)
         else:
             self.run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -57,19 +58,25 @@ class ResultsStorage:
         self.questions_dir.mkdir(parents=True, exist_ok=True)
         self.metrics_dir.mkdir(parents=True, exist_ok=True)
 
-    def _generate_run_id(self, output_dir: str, dataset_name: str, n_questions: int) -> str:
+    def _generate_run_id(self, output_dir: str, dataset_name: str, n_questions: int, random_seed: int = None) -> str:
         """
-        Generate descriptive run_id like medqa_10q_run1, medqa_10q_run2, etc.
+        Generate descriptive run_id like medqa_50q_seed1_run1, medqa_50q_seed2_run1, etc.
 
         Args:
             output_dir: Base output directory
             dataset_name: Dataset name
             n_questions: Number of questions
+            random_seed: Random seed for unique identification
 
         Returns:
-            Descriptive run_id with incremental counter
+            Descriptive run_id with seed and incremental counter
         """
-        base_id = f"{dataset_name}_{n_questions}q"
+        # Include seed in base_id to prevent overwrites between different seeds
+        if random_seed is not None:
+            base_id = f"{dataset_name}_{n_questions}q_seed{random_seed}"
+        else:
+            base_id = f"{dataset_name}_{n_questions}q"
+
         base_path = Path(output_dir)
 
         # Find existing runs with this pattern

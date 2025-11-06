@@ -515,6 +515,7 @@ Final Answer: """
             "model_family": self.model_config.get("model_family", "unknown"),
             "specialized_domain": self.model_config.get("specialized_domain", "general"),
             "supports_vision": self.model_config.get("supports_vision", False),
+            "random_seed": random_seed,  # CRITICAL: Include seed in summary
             "total_questions": total_questions,
             "correct_answers": correct_answers,
             "accuracy": accuracy,
@@ -523,10 +524,10 @@ Final Answer: """
             "avg_time_per_question": (end_time - start_time) / len(questions) if questions else 0,
             "timestamp": datetime.now().isoformat()
         }
-        
-        # Use enhanced results logger to save results
+
+        # Use enhanced results logger to save results WITH SEED
         results_file, summary_file = self.results_logger.save_run_results(
-            results, summary, model_name, dataset_name, method, self.chat_instance_type
+            results, summary, model_name, dataset_name, method, self.chat_instance_type, random_seed
         )
         
         # Generate aggregated summaries
