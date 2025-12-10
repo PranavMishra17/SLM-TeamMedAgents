@@ -51,7 +51,6 @@ set KEY_NUMBER=%1
 set SEED=%2
 set MODEL=gemma3_4b
 set N_QUESTIONS=50
-set N_AGENTS=3
 set OUTPUT_DIR=multi-agent-gemma/ablation
 
 echo ============================================================================
@@ -63,7 +62,7 @@ echo - API Key Number: %KEY_NUMBER% (GOOGLE_API_KEY%KEY_NUMBER%)
 echo - Random Seed: %SEED%
 echo - Model: %MODEL%
 echo - Questions per run: %N_QUESTIONS%
-echo - Agents per run: %N_AGENTS%
+echo - Agents per run: Dynamic (determined by algorithm)
 echo - Output Directory: %OUTPUT_DIR%
 echo.
 echo Datasets: 8
@@ -108,11 +107,11 @@ for %%D in (%DATASETS%) do (
     echo.
     echo [!CURRENT!/%TOTAL%] Config 1: Team Orientation + Mutual Monitoring
     echo Dataset: %%D - Key %KEY_NUMBER% - Seed %SEED%
-    echo Command: python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --n-agents %N_AGENTS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --team-orientation --mutual-monitoring
+    echo Command: python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --team-orientation --mutual-monitoring
     echo.
     echo [!CURRENT!/%TOTAL%] Config 1: TO+MM - %%D >> %LOG_FILE%
 
-    python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --n-agents %N_AGENTS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --team-orientation --mutual-monitoring
+    python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --team-orientation --mutual-monitoring
 
     if errorlevel 1 (
         echo ERROR: Config 1 failed for %%D >> %LOG_FILE%
@@ -129,11 +128,11 @@ for %%D in (%DATASETS%) do (
     echo.
     echo [!CURRENT!/%TOTAL%] Config 2: SMM + Trust
     echo Dataset: %%D - Key %KEY_NUMBER% - Seed %SEED%
-    echo Command: python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --n-agents %N_AGENTS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --smm --trust
+    echo Command: python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --smm --trust
     echo.
     echo [!CURRENT!/%TOTAL%] Config 2: SMM+Trust - %%D >> %LOG_FILE%
 
-    python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --n-agents %N_AGENTS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --smm --trust
+    python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --smm --trust
 
     if errorlevel 1 (
         echo ERROR: Config 2 failed for %%D >> %LOG_FILE%
@@ -150,11 +149,11 @@ for %%D in (%DATASETS%) do (
     echo.
     echo [!CURRENT!/%TOTAL%] Config 3: Team Orientation + SMM + Leadership
     echo Dataset: %%D - Key %KEY_NUMBER% - Seed %SEED%
-    echo Command: python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --n-agents %N_AGENTS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --team-orientation --smm --leadership
+    echo Command: python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --team-orientation --smm --leadership
     echo.
     echo [!CURRENT!/%TOTAL%] Config 3: TO+SMM+L - %%D >> %LOG_FILE%
 
-    python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --n-agents %N_AGENTS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --team-orientation --smm --leadership
+    python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --team-orientation --smm --leadership
 
     if errorlevel 1 (
         echo ERROR: Config 3 failed for %%D >> %LOG_FILE%
@@ -171,11 +170,11 @@ for %%D in (%DATASETS%) do (
     echo.
     echo [!CURRENT!/%TOTAL%] Config 4: All Teamwork Components
     echo Dataset: %%D - Key %KEY_NUMBER% - Seed %SEED%
-    echo Command: python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --n-agents %N_AGENTS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --all-teamwork
+    echo Command: python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --all-teamwork
     echo.
     echo [!CURRENT!/%TOTAL%] Config 4: ALL - %%D >> %LOG_FILE%
 
-    python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --n-agents %N_AGENTS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --all-teamwork
+    python run_simulation_adk.py --dataset %%D --n-questions %N_QUESTIONS% --model %MODEL% --seed %SEED% --key %KEY_NUMBER% --output-dir %OUTPUT_DIR% --all-teamwork
 
     if errorlevel 1 (
         echo ERROR: Config 4 failed for %%D >> %LOG_FILE%

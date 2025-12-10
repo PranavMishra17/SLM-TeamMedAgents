@@ -230,13 +230,23 @@ class VertexAISimulationRunner:
         self.random_seed = random_seed
 
         # Import and initialize multi-agent system
-        # NOTE: We need to create a Vertex AI compatible version
+        # NOTE: The same MultiAgentSystemADK works for both Google AI Studio and Vertex AI
+        # The key is that GOOGLE_GENAI_USE_VERTEXAI=TRUE is set, which causes
+        # GemmaAgentFactory.create_agent() to automatically delegate to VertexAIAgentFactory
         from adk_agents import MultiAgentSystemADK
 
-        # For now, we'll use the existing system but with Vertex AI environment
-        # The agent creation will automatically use Vertex AI due to env vars
+        # Verify Vertex AI env var is set (should be set in main() before creating runner)
+        use_vertex = os.environ.get('GOOGLE_GENAI_USE_VERTEXAI', 'FALSE').upper() == 'TRUE'
+        if not use_vertex:
+            logging.warning("GOOGLE_GENAI_USE_VERTEXAI not set to TRUE - agents may use Google AI Studio instead!")
+            logging.warning("Setting GOOGLE_GENAI_USE_VERTEXAI=TRUE now...")
+            os.environ['GOOGLE_GENAI_USE_VERTEXAI'] = 'TRUE'
+
+        # Create multi-agent system
+        # model_name is not used by Vertex AI (endpoint comes from env vars),
+        # but we pass it for logging/identification purposes
         self.system = MultiAgentSystemADK(
-            model_name=f"vertex-ai-{endpoint_id}",  # Identifier for logging
+            model_name=f"medgemma-vertex-ai",  # Identifier for logging (not used by Vertex AI)
             n_agents=n_agents,
             teamwork_config=teamwork_config
         )
@@ -801,6 +811,13 @@ async def main():
         endpoint_id = args.endpoint_id or vertex_config['endpoint_id']
         project_id = args.project_id or vertex_config['project_id']
         location = args.location or vertex_config['location']
+
+        # CRITICAL: Ensure GOOGLE_GENAI_USE_VERTEXAI is set to TRUE
+        # This must be set BEFORE creating any agents, as GemmaAgentFactory checks this
+        # during agent creation (in recruiter initialization)
+        if os.environ.get('GOOGLE_GENAI_USE_VERTEXAI', 'FALSE').upper() != 'TRUE':
+            os.environ['GOOGLE_GENAI_USE_VERTEXAI'] = 'TRUE'
+            logging.info("Set GOOGLE_GENAI_USE_VERTEXAI=TRUE for agent creation")
 
     except RuntimeError as e:
         logging.error(f"Configuration Error: {e}")

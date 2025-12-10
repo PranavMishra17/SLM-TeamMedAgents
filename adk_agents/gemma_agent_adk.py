@@ -39,6 +39,15 @@ except ImportError:
     GEMMA_AVAILABLE = False
     logging.warning("Gemma model not available in ADK")
 
+# Optional: Vertex AI agent factory fallback. If the environment indicates
+# Vertex AI should be used, we will delegate agent creation to
+# VertexAIAgentFactory defined in `gemma_agent_vertex_adk.py`.
+try:
+    from .gemma_agent_vertex_adk import VertexAIAgentFactory
+    VERTEX_FACTORY_AVAILABLE = True
+except Exception:
+    VERTEX_FACTORY_AVAILABLE = False
+
 
 class GemmaAgentFactory:
     """
@@ -94,6 +103,24 @@ class GemmaAgentFactory:
         """
         if not ADK_AVAILABLE:
             raise RuntimeError("Google ADK not installed. Run: pip install google-adk")
+
+        # If the environment requests Vertex AI usage, delegate creation to VertexAIAgentFactory.
+        use_vertex = os.environ.get('GOOGLE_GENAI_USE_VERTEXAI', 'FALSE').upper() == 'TRUE'
+        if use_vertex and VERTEX_FACTORY_AVAILABLE:
+            logging.info("GOOGLE_GENAI_USE_VERTEXAI=TRUE -> delegating agent creation to VertexAIAgentFactory")
+            # Vertex factory will read endpoint/project from env vars if not provided
+            return VertexAIAgentFactory.create_agent(
+                name=name,
+                role=role,
+                expertise=expertise,
+                endpoint_id=None,
+                project_id=None,
+                location=None,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                has_image=has_image,
+                **kwargs
+            )
 
         # Get API key
         api_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY')

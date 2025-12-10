@@ -26,6 +26,9 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+_FINAL/
+_RESEARCH/
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -183,3 +186,5 @@ cython_debug/
 /.claude
 /dataset
 /multi-agent-gemma/results
+*.txt
+/multi-agent-gemma

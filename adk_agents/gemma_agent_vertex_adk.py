@@ -181,13 +181,24 @@ class VertexAIAgentFactory:
         instruction = VertexAIAgentFactory._build_instruction(role, expertise, has_image)
 
         # Create LlmAgent with Vertex AI endpoint
-        # ADK will use the endpoint resource name directly
-        agent = LlmAgent(
-            name=name,
-            model=endpoint_resource,  # Full endpoint resource name
-            description=f"{role} - {expertise}",
-            instruction=instruction
-        )
+        # NOTE: ADK's LlmAgent should accept Vertex AI endpoint resource names
+        # Format: projects/{project}/locations/{location}/endpoints/{endpoint}
+        # The endpoint resource name is passed as the 'model' parameter.
+        # If ADK doesn't support this format directly, LlmAgent will raise an exception.
+        try:
+            agent = LlmAgent(
+                name=name,
+                model=endpoint_resource,  # Full endpoint resource name
+                description=f"{role} - {expertise}",
+                instruction=instruction
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to create LlmAgent with Vertex AI endpoint: {endpoint_resource}\n"
+                f"Error: {e}\n"
+                f"This may indicate that ADK's LlmAgent doesn't support Vertex AI endpoints directly.\n"
+                f"Consider using google.genai client directly and wrapping it in a custom Agent."
+            ) from e
 
         # Store configuration on agent for direct API access if needed
         agent._vertex_config = {
