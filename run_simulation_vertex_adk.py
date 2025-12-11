@@ -59,12 +59,22 @@ from pathlib import Path
 from typing import Dict, Any, List
 from datetime import datetime
 
-# Load environment variables from .env file
+# Load environment variables from .env file at repository root and prefer those values
+REPO_ROOT = Path(__file__).resolve().parent
+ENV_FILE = REPO_ROOT / ".env"
 try:
-    from dotenv import load_dotenv
-    load_dotenv()  # Load .env file from current directory
-except ImportError:
-    # python-dotenv not installed, environment variables must be set manually
+    from dotenv import load_dotenv, dotenv_values
+    try:
+        load_dotenv(dotenv_path=str(ENV_FILE), override=True)
+    except TypeError:
+        # older python-dotenv
+        load_dotenv(dotenv_path=str(ENV_FILE))
+        vals = dotenv_values(str(ENV_FILE))
+        for kk, vv in vals.items():
+            if vv is not None:
+                os.environ[kk] = vv
+except Exception:
+    # python-dotenv not installed or other issue; continue using OS env vars
     pass
 
 

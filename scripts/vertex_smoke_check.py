@@ -3,6 +3,26 @@ import sys
 import subprocess
 from pathlib import Path
 
+# Prefer configuration from repository-root .env file (override OS envs)
+REPO_ROOT = Path(__file__).resolve().parent.parent
+ENV_FILE = REPO_ROOT / ".env"
+try:
+    from dotenv import load_dotenv, dotenv_values
+    try:
+        # Preferred: override any existing env vars with .env values
+        load_dotenv(dotenv_path=str(ENV_FILE), override=True)
+    except TypeError:
+        # Older python-dotenv may not support override kwarg
+        load_dotenv(dotenv_path=str(ENV_FILE))
+        # enforce .env values over existing env
+        vals = dotenv_values(str(ENV_FILE))
+        for kk, vv in vals.items():
+            if vv is not None:
+                os.environ[kk] = vv
+except Exception:
+    # If python-dotenv not available or .env missing, continue using OS envs
+    pass
+
 REQUIRED_TRUE = [
     "GOOGLE_GENAI_USE_VERTEXAI",
 ]
