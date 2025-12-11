@@ -18,9 +18,9 @@ set N_QUESTIONS=500
 set SEED=42
 set OUTPUT_DIR=multi-agent-gemma/full_vertex
 
-if "%VERTEX_AI_ENDPOINT_ID%"=="" (
-    echo ERROR: VERTEX_AI_ENDPOINT_ID environment variable is not set
-    echo Please set VERTEX_AI_ENDPOINT_ID (see documentation/VERTEX_AI_SETUP.md)
+REM Load environment variables from .env file
+call "%~dp0load_env.bat"
+if errorlevel 1 (
     pause
     exit /b 1
 )
@@ -56,7 +56,7 @@ if /i "%DATASET%"=="ddxplus" (
 ) else if /i "%DATASET%"=="pubmedqa" (
     set CONFIG_FLAGS=--smm --trust
     set CONFIG_NAME=SMM + Trust
-) else if /i "%DATASET%"=="mmlupro-med" (
+) else if /i "%DATASET%"=="mmlupro" (
     set CONFIG_FLAGS=--smm --trust
     set CONFIG_NAME=SMM + Trust
 ) else (

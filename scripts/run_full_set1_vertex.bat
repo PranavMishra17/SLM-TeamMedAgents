@@ -5,16 +5,18 @@ REM Launches 4 datasets in parallel using run_full_single_vertex.bat
 REM Datasets: medqa, path_vqa, medbullets, ddxplus
 REM ============================================================================
 
-echo ============================================================================
-echo FULL DATASET BENCHMARK - SET 1 (Vertex AI)
-echo Ensure VERTEX_AI_ENDPOINT_ID and GOOGLE_CLOUD_PROJECT are set
-echo ============================================================================
-
-if "%VERTEX_AI_ENDPOINT_ID%"=="" (
-    echo ERROR: VERTEX_AI_ENDPOINT_ID not set
+REM Load environment variables from .env file
+echo Loading configuration from .env file...
+call "%~dp0load_env.bat"
+if errorlevel 1 (
     pause
     exit /b 1
 )
+
+echo ============================================================================
+echo FULL DATASET BENCHMARK - SET 1 (Vertex AI)
+echo Configuration loaded successfully!
+echo ============================================================================
 
 echo Launching medqa...
 start "Full - medqa" cmd /k "%~dp0run_full_single_vertex.bat medqa"

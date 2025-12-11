@@ -17,16 +17,12 @@ set SEED=%1
 set N_QUESTIONS=50
 set OUTPUT_DIR=multi-agent-gemma/ablation_vertex
 
-REM Verify Vertex env vars
-if "%VERTEX_AI_ENDPOINT_ID%"=="" (
-    echo ERROR: VERTEX_AI_ENDPOINT_ID environment variable is not set
-    echo Please set VERTEX_AI_ENDPOINT_ID (see documentation/VERTEX_AI_SETUP.md)
+REM Load environment variables from .env file
+echo Loading configuration from .env file...
+call "%~dp0load_env.bat"
+if errorlevel 1 (
     pause
     exit /b 1
-)
-
-if /i "%GOOGLE_GENAI_USE_VERTEXAI%" neq "TRUE" (
-    echo WARNING: GOOGLE_GENAI_USE_VERTEXAI is not set to TRUE. Continuing anyway.
 )
 
 echo ============================================================================
@@ -37,7 +33,7 @@ echo Endpoint: %VERTEX_AI_ENDPOINT_ID%
 echo Output Dir: %OUTPUT_DIR%
 echo ============================================================================
 
-set DATASETS=medqa medmcqa mmlupro-med pubmedqa medbullets ddxplus pmc_vqa path_vqa
+set DATASETS=medqa medmcqa mmlupro pubmedqa medbullets ddxplus pmc_vqa path_vqa
 
 REM Define 6 configurations
 setlocal enabledelayedexpansion
@@ -61,10 +57,11 @@ for %%D in (%DATASETS%) do (
 
     REM Config 1
     set /a CURRENT+=1
+    set CONFIG_DIR=%OUTPUT_DIR%/config1_TO+MM
     echo [!CURRENT!/%TOTAL%] Config 1: Team Orientation + Mutual Monitoring - %%D
-    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --team-orientation --mutual-monitoring
+    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --team-orientation --mutual-monitoring
     echo [!CURRENT!/%TOTAL%] Config 1: TO+MM - %%D >> %LOG_FILE%
-    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --team-orientation --mutual-monitoring
+    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --team-orientation --mutual-monitoring
     if errorlevel 1 (
         echo ERROR: Config 1 failed for %%D >> %LOG_FILE%
         echo ERROR: Config 1 failed for %%D
@@ -74,10 +71,11 @@ for %%D in (%DATASETS%) do (
 
     REM Config 2
     set /a CURRENT+=1
+    set CONFIG_DIR=%OUTPUT_DIR%/config2_SMM+Trust
     echo [!CURRENT!/%TOTAL%] Config 2: SMM + Trust - %%D
-    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --smm --trust
+    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --smm --trust
     echo [!CURRENT!/%TOTAL%] Config 2: SMM+Trust - %%D >> %LOG_FILE%
-    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --smm --trust
+    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --smm --trust
     if errorlevel 1 (
         echo ERROR: Config 2 failed for %%D >> %LOG_FILE%
         echo ERROR: Config 2 failed for %%D
@@ -87,10 +85,11 @@ for %%D in (%DATASETS%) do (
 
     REM Config 3
     set /a CURRENT+=1
+    set CONFIG_DIR=%OUTPUT_DIR%/config3_TO+SMM+L
     echo [!CURRENT!/%TOTAL%] Config 3: Team Orientation + SMM + Leadership - %%D
-    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --team-orientation --smm --leadership
+    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --team-orientation --smm --leadership
     echo [!CURRENT!/%TOTAL%] Config 3: TO+SMM+L - %%D >> %LOG_FILE%
-    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --team-orientation --smm --leadership
+    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --team-orientation --smm --leadership
     if errorlevel 1 (
         echo ERROR: Config 3 failed for %%D >> %LOG_FILE%
         echo ERROR: Config 3 failed for %%D
@@ -100,10 +99,11 @@ for %%D in (%DATASETS%) do (
 
     REM Config 4
     set /a CURRENT+=1
+    set CONFIG_DIR=%OUTPUT_DIR%/config4_ALL
     echo [!CURRENT!/%TOTAL%] Config 4: All Teamwork Components - %%D
-    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --all-teamwork
+    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --all-teamwork
     echo [!CURRENT!/%TOTAL%] Config 4: ALL - %%D >> %LOG_FILE%
-    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --all-teamwork
+    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --all-teamwork
     if errorlevel 1 (
         echo ERROR: Config 4 failed for %%D >> %LOG_FILE%
         echo ERROR: Config 4 failed for %%D
@@ -113,10 +113,11 @@ for %%D in (%DATASETS%) do (
 
     REM Config 5
     set /a CURRENT+=1
+    set CONFIG_DIR=%OUTPUT_DIR%/config5_L+Trust
     echo [!CURRENT!/%TOTAL%] Config 5: Leadership + Trust - %%D
-    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --leadership --trust
+    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --leadership --trust
     echo [!CURRENT!/%TOTAL%] Config 5: L+Trust - %%D >> %LOG_FILE%
-    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --leadership --trust
+    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --leadership --trust
     if errorlevel 1 (
         echo ERROR: Config 5 failed for %%D >> %LOG_FILE%
         echo ERROR: Config 5 failed for %%D
@@ -126,10 +127,11 @@ for %%D in (%DATASETS%) do (
 
     REM Config 6
     set /a CURRENT+=1
+    set CONFIG_DIR=%OUTPUT_DIR%/config6_SMM+MM
     echo [!CURRENT!/%TOTAL%] Config 6: SMM + Mutual Monitoring - %%D
-    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --smm --mutual-monitoring
+    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --smm --mutual-monitoring
     echo [!CURRENT!/%TOTAL%] Config 6: SMM+MM - %%D >> %LOG_FILE%
-    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% --smm --mutual-monitoring
+    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %%D --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! --smm --mutual-monitoring
     if errorlevel 1 (
         echo ERROR: Config 6 failed for %%D >> %LOG_FILE%
         echo ERROR: Config 6 failed for %%D

@@ -26,8 +26,9 @@ set SEED=%2
 set N_QUESTIONS=50
 set OUTPUT_DIR=multi-agent-gemma/ablation_vertex
 
-if "%VERTEX_AI_ENDPOINT_ID%"=="" (
-    echo ERROR: VERTEX_AI_ENDPOINT_ID not set. See documentation/VERTEX_AI_SETUP.md
+REM Load environment variables from .env file
+call "%~dp0load_env.bat"
+if errorlevel 1 (
     pause
     exit /b 1
 )
@@ -48,32 +49,39 @@ echo Started: %date% %time% >> %LOG_FILE%
 REM Configurations to run
 set CONFIGS=1 2 3 4 5 6
 
+setlocal enabledelayedexpansion
 for %%C in (%CONFIGS%) do (
     if %%C==1 (
         set FLAGS=--team-orientation --mutual-monitoring
         set LABEL=TO+MM
+        set CONFIG_DIR=%OUTPUT_DIR%/config1_TO+MM
     ) else if %%C==2 (
         set FLAGS=--smm --trust
         set LABEL=SMM+Trust
+        set CONFIG_DIR=%OUTPUT_DIR%/config2_SMM+Trust
     ) else if %%C==3 (
         set FLAGS=--team-orientation --smm --leadership
         set LABEL=TO+SMM+L
+        set CONFIG_DIR=%OUTPUT_DIR%/config3_TO+SMM+L
     ) else if %%C==4 (
         set FLAGS=--all-teamwork
         set LABEL=ALL
+        set CONFIG_DIR=%OUTPUT_DIR%/config4_ALL
     ) else if %%C==5 (
         set FLAGS=--leadership --trust
         set LABEL=L+Trust
+        set CONFIG_DIR=%OUTPUT_DIR%/config5_L+Trust
     ) else if %%C==6 (
         set FLAGS=--smm --mutual-monitoring
         set LABEL=SMM+MM
+        set CONFIG_DIR=%OUTPUT_DIR%/config6_SMM+MM
     )
 
-    echo Running Config %%C (%LABEL%) for %DATASET% (Seed %SEED%)
-    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %DATASET% --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% %FLAGS%
-    echo [%DATE% %TIME%] Config %%C (%LABEL%) >> %LOG_FILE%
+    echo Running Config %%C (!LABEL!) for %DATASET% (Seed %SEED%)
+    echo Command: python "%~dp0..\run_simulation_vertex_adk.py" --dataset %DATASET% --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! !FLAGS!
+    echo [%DATE% %TIME%] Config %%C (!LABEL!) >> %LOG_FILE%
 
-    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %DATASET% --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir %OUTPUT_DIR% %FLAGS%
+    python "%~dp0..\run_simulation_vertex_adk.py" --dataset %DATASET% --n-questions %N_QUESTIONS% --endpoint-id %VERTEX_AI_ENDPOINT_ID% --project-id %GOOGLE_CLOUD_PROJECT% --location %GOOGLE_CLOUD_LOCATION% --seed %SEED% --output-dir !CONFIG_DIR! !FLAGS!
 
     if errorlevel 1 (
         echo ERROR: Config %%C failed for %DATASET% >> %LOG_FILE%
