@@ -35,6 +35,7 @@ import asyncio
 import random
 import base64
 import io
+import os
 from typing import AsyncGenerator, Dict, List, Any
 from pathlib import Path
 
@@ -191,13 +192,19 @@ async def execute_multimodal_gemma(
     image_mime_type: str = 'image/jpeg'
 ) -> str:
     """
-    Direct multimodal call to Gemma using google.genai client, bypassing ADK Agent wrapper.
+    Direct multimodal call to Gemma/MedGemma using google.genai client, bypassing ADK Agent wrapper.
 
     This function works around ADK's Agent interface which doesn't properly expose
-    multimodal capabilities of Gemma models. We use google.genai client directly.
+    multimodal capabilities. We use google.genai client directly for both Google AI Studio
+    and Vertex AI endpoints.
 
     Args:
-        model_config: Dictionary containing model_name, api_key, temperature, max_tokens
+        model_config: Dictionary containing:
+            - model_name: Model name or endpoint resource name
+            - api_key: API key (Google AI Studio only, None for Vertex AI)
+            - temperature: Sampling temperature
+            - max_tokens: Max output tokens
+            - use_vertex: True if using Vertex AI endpoint
         text_prompt: Text prompt for the agent
         image_base64: Base64-encoded image data
         image_mime_type: MIME type of the image (default: 'image/jpeg')
@@ -213,16 +220,30 @@ async def execute_multimodal_gemma(
 
     client = None
     try:
-        logging.debug(f"[MULTIMODAL DIRECT] Calling Gemma model: {model_config.get('model_name')}")
+        model_name = model_config.get('model_name')
+        use_vertex = model_config.get('use_vertex', False)
+
+        logging.debug(f"[MULTIMODAL DIRECT] Calling {'Vertex AI' if use_vertex else 'Google AI'} model: {model_name}")
         logging.debug(f"[MULTIMODAL DIRECT] Text prompt length: {len(text_prompt)} chars")
         logging.debug(f"[MULTIMODAL DIRECT] Image base64 length: {len(image_base64)} chars")
 
         # Create google.genai client
-        api_key = model_config.get('api_key')
-        if not api_key:
-            raise RuntimeError("API key not found in model_config")
-
-        client = genai.Client(api_key=api_key)
+        if use_vertex:
+            # Vertex AI: Use Application Default Credentials
+            logging.debug(f"[MULTIMODAL DIRECT] Using Vertex AI with ADC")
+            # For Vertex AI, genai.Client will automatically use ADC when no api_key is provided
+            # and GOOGLE_GENAI_USE_VERTEXAI=TRUE is set in environment
+            client = genai.Client(
+                vertexai=True,
+                project=os.environ.get('GOOGLE_CLOUD_PROJECT'),
+                location=os.environ.get('GOOGLE_CLOUD_LOCATION', 'us-central1')
+            )
+        else:
+            # Google AI Studio: Use API key
+            api_key = model_config.get('api_key')
+            if not api_key:
+                raise RuntimeError("API key not found in model_config for Google AI Studio")
+            client = genai.Client(api_key=api_key)
 
         # Decode base64 image to bytes
         image_bytes = base64.b64decode(image_base64)
@@ -250,7 +271,7 @@ async def execute_multimodal_gemma(
         # Call model with multimodal content
         logging.debug(f"[MULTIMODAL DIRECT] Sending request to model...")
         response = await client.aio.models.generate_content(
-            model=model_config['model_name'],
+            model=model_name,
             contents=contents,
             config=config
         )
@@ -264,6 +285,7 @@ async def execute_multimodal_gemma(
     except Exception as e:
         logging.error(f"[MULTIMODAL DIRECT] Error in multimodal execution: {type(e).__name__}: {e}")
         logging.error(f"[MULTIMODAL DIRECT] Model: {model_config.get('model_name')}")
+        logging.error(f"[MULTIMODAL DIRECT] Use Vertex: {model_config.get('use_vertex')}")
         logging.error(f"[MULTIMODAL DIRECT] Image MIME: {image_mime_type}")
         raise
 
@@ -575,10 +597,25 @@ class ThreeRoundDebateAgent(BaseAgent):
         # Check if this is a multimodal call and agent has config for direct API access
         has_image = image_base64 and image_mime_type
         has_gemma_config = hasattr(agent, '_gemma_config') and agent._gemma_config
+        has_vertex_config = hasattr(agent, '_vertex_config') and agent._vertex_config
 
-        if has_image and has_gemma_config:
+        if has_image and (has_gemma_config or has_vertex_config):
             # MULTIMODAL PATH: Bypass ADK Agent wrapper and use google.genai client directly
-            logging.info(f"[{agent.name}] Using direct multimodal Gemma API (bypassing ADK)")
+            model_config = agent._gemma_config if has_gemma_config else agent._vertex_config
+
+            # For Vertex AI, convert _vertex_config to format expected by execute_multimodal_gemma
+            if has_vertex_config:
+                logging.info(f"[{agent.name}] Using direct multimodal Vertex AI API (bypassing ADK)")
+                # Convert Vertex AI config to model_config format
+                model_config = {
+                    'model_name': model_config.get('endpoint_resource'),
+                    'api_key': None,  # Vertex AI uses ADC, not API key
+                    'temperature': model_config.get('temperature', 0.7),
+                    'max_tokens': model_config.get('max_tokens', 2048),
+                    'use_vertex': True
+                }
+            else:
+                logging.info(f"[{agent.name}] Using direct multimodal Gemma API (bypassing ADK)")
 
             try:
                 # Use direct multimodal call with retry logic
@@ -586,7 +623,7 @@ class ThreeRoundDebateAgent(BaseAgent):
                 for attempt in range(max_retries):
                     try:
                         response_text = await execute_multimodal_gemma(
-                            model_config=agent._gemma_config,
+                            model_config=model_config,
                             text_prompt=prompt,
                             image_base64=image_base64,
                             image_mime_type=image_mime_type
@@ -621,9 +658,9 @@ class ThreeRoundDebateAgent(BaseAgent):
                     logging.error(f"[{agent.name}] Text-only fallback also failed: {text_error}")
                     response_text = f"ERROR: Could not execute agent - {str(text_error)}"
 
-        elif has_image and not has_gemma_config:
+        elif has_image and not (has_gemma_config or has_vertex_config):
             # Image provided but no direct API config - warn and fall back to text
-            logging.warning(f"[{agent.name}] Image provided but agent lacks _gemma_config, falling back to text-only")
+            logging.warning(f"[{agent.name}] Image provided but agent lacks _gemma_config/_vertex_config, falling back to text-only")
             logging.warning(f"[{agent.name}] This may result in hallucinated visual observations!")
 
             try:

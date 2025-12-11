@@ -201,6 +201,7 @@ class VertexAIAgentFactory:
             ) from e
 
         # Store configuration on agent for direct API access if needed
+        # This config is used by execute_multimodal_gemma() for direct API calls
         agent._vertex_config = {
             'endpoint_resource': endpoint_resource,
             'project_id': project_id,
@@ -208,10 +209,13 @@ class VertexAIAgentFactory:
             'endpoint_id': endpoint_id,
             'temperature': temperature,
             'max_tokens': max_tokens,
-            'has_image': has_image
+            'has_image': has_image,
+            'use_vertex': True  # Flag to indicate this is a Vertex AI agent
         }
 
         logging.info(f"Created Vertex AI agent '{name}' with endpoint: {endpoint_id}")
+        if has_image:
+            logging.info(f"  Agent '{name}' configured for multimodal (text + image) input")
         return agent
 
     @staticmethod

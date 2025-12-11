@@ -54,10 +54,35 @@ class TokenCounter:
         self.question_tokens = []
     
     def count_tokens_google(self, text: str, model: str = "gemma-3-4b-it") -> int:
-        """Count tokens using Google's API."""
+        """
+        Count tokens using Google's API.
+
+        NOTE: Vertex AI endpoints don't support countTokens API, so we skip
+        remote counting for those and use local approximation instead.
+        """
         if not self.google_available or not text:
             return self.count_tokens_approximate(text)
-        
+
+        # Detect Vertex AI endpoint resource names
+        # Formats: projects/.../endpoints/... or medgemma-endpoint-... or medgemma-vertex-ai
+        is_vertex = any([
+            "endpoints/" in model,
+            "medgemma-endpoint" in model.lower(),
+            "medgemma-vertex" in model.lower(),
+            model.startswith("projects/")
+        ])
+
+        if is_vertex:
+            # Vertex AI endpoints don't support countTokens API
+            # Use local approximation instead to avoid 404 errors
+            if not hasattr(self, '_logged_vertex_token_skip'):
+                logging.info(
+                    f"Using local token approximation for Vertex AI endpoint "
+                    f"(countTokens API not supported)"
+                )
+                self._logged_vertex_token_skip = True
+            return self.count_tokens_approximate(text)
+
         try:
             # Try the straightforward count_tokens call first. Some client versions expose
             # models.count_tokens while others require calling the REST endpoint under v1beta.
